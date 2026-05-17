@@ -1,0 +1,399 @@
+import { mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { homedir } from "node:os";
+import { Command } from "commander";
+import { createDatabase } from "../adapters/sqlite/database.js";
+import {
+  createEvent,
+  findEventByName,
+  insertExpense,
+  listExpenses,
+  listEventExpenses,
+  updateExpense,
+} from "../adapters/sqlite/repository.js";
+import {
+  deleteItem,
+  editItem,
+  listItems,
+  restoreItem,
+  searchItems,
+  type ItemSearchFilter,
+} from "../domain/items.js";
+import { calculateSettlement, type ParticipantId } from "../domain/settlement.js";
+import { summarizeEvent, type EventSummary } from "../domain/summary.js";
+import { exportEvent } from "../domain/export.js";
+
+export type CliIo = {
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+};
+
+type Format = "text" | "json";
+
+export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<number> {
+  const program = buildProgram(io);
+  try {
+    await program.parseAsync(argv, { from: "user" });
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    io.stderr(message);
+    return 1;
+  }
+}
+
+export function buildProgram(io: CliIo = defaultIo): Command {
+  const program = new Command();
+
+  program
+    .name("expense-tracker")
+    .description("CLI-first agent-native expense tracker")
+    .version("0.1.0")
+    .option("--db <path>", "SQLite database path", defaultDbPath());
+  program.exitOverride((error) => {
+    throw new Error(error.message);
+  });
+
+  const event = program.command("event");
+
+  event
+    .command("create")
+    .argument("<name>")
+    .option("--people <people>", "Comma-separated participant IDs")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((name: string, options: { people?: string; format: Format }) => {
+      const db = openDb(program);
+      const now = new Date().toISOString();
+      const record = createEvent(db, {
+        id: createId("evt", name),
+        name,
+        defaultParticipantId: "self" as ParticipantId,
+        participants: parsePeople(options.people),
+        createdAt: now,
+      });
+
+      writeOutput(io, options.format, record, `Created event ${record.name}`);
+    });
+
+  event
+    .command("settle")
+    .argument("<name>")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((name: string, options: { format: Format }) => {
+      const db = openDb(program);
+      const record = findEventByName(db, name);
+      if (!record) {
+        throw new Error(`Event not found: ${name}`);
+      }
+      const expenses = listEventExpenses(db, record.id);
+      const settlement = calculateSettlement({
+        participants: record.participantIds,
+        expenses,
+      });
+      writeOutput(io, options.format, stringifyBigInts(settlement), formatSettlementText(settlement));
+    });
+
+  event
+    .command("summary")
+    .argument("<name>")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((name: string, options: { format: Format }) => {
+      const db = openDb(program);
+      const record = findEventByName(db, name);
+      if (!record) {
+        throw new Error(`Event not found: ${name}`);
+      }
+      const summary = summarizeEvent({
+        event: record,
+        expenses: listEventExpenses(db, record.id),
+      });
+      writeOutput(io, options.format, stringifyBigInts(summary), formatSummaryText(summary));
+    });
+
+  event
+    .command("export")
+    .argument("<name>")
+    .action((name: string) => {
+      const db = openDb(program);
+      const record = findEventByName(db, name);
+      if (!record) {
+        throw new Error(`Event not found: ${name}`);
+      }
+      const exported = exportEvent({
+        exportedAt: new Date().toISOString(),
+        event: record,
+        expenses: listEventExpenses(db, record.id),
+      });
+      io.stdout(JSON.stringify(stringifyBigInts(exported)));
+    });
+
+  const expense = program.command("expense");
+
+  expense
+    .command("add")
+    .requiredOption("--event <name>", "Event name")
+    .requiredOption("--paid-by <participant>", "Payer participant ID")
+    .requiredOption("--currency <currency>", "Currency code")
+    .requiredOption("--amount-minor <amount>", "Amount in minor units")
+    .requiredOption("--shared-by <people>", "Comma-separated participants")
+    .requiredOption("--category <category>", "Expense category")
+    .option("--description <description>", "Expense description")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((options: {
+      event: string;
+      paidBy: string;
+      currency: string;
+      amountMinor: string;
+      sharedBy: string;
+      category: string;
+      description?: string;
+      format: Format;
+    }) => {
+      const db = openDb(program);
+      const record = findEventByName(db, options.event);
+      if (!record) {
+        throw new Error(`Event not found: ${options.event}`);
+      }
+      const now = new Date().toISOString();
+      const expenseRecord = {
+        id: createId("exp", `${options.event}-${options.category}-${now}`),
+        eventId: record.id,
+        type: "shared" as const,
+        status: "active" as const,
+        paidBy: options.paidBy as ParticipantId,
+        currency: options.currency,
+        amountMinor: BigInt(options.amountMinor),
+        category: options.category,
+        description: options.description,
+        participants: parsePeople(options.sharedBy),
+        createdAt: now,
+        updatedAt: now,
+      };
+      insertExpense(db, expenseRecord);
+      writeOutput(io, options.format, stringifyBigInts(expenseRecord), `Added expense ${expenseRecord.id}`);
+    });
+
+  const item = program.command("item");
+
+  item
+    .command("list")
+    .option("--event <name>", "Event name")
+    .option("--status <status>", "Status filter: active, deleted, all", "active")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((options: { event?: string; status: ItemSearchFilter["status"]; format: Format }) => {
+      const db = openDb(program);
+      const filter = buildItemFilter(db, options);
+      const results = listItems(listExpenses(db), filter);
+      writeOutput(io, options.format, stringifyBigInts(results), formatItemsText(results));
+    });
+
+  item
+    .command("search")
+    .option("--event <name>", "Event name")
+    .option("--text <text>", "Text query")
+    .option("--category <category>", "Category")
+    .option("--currency <currency>", "Currency")
+    .option("--status <status>", "Status filter: active, deleted, all", "active")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((options: {
+      event?: string;
+      text?: string;
+      category?: string;
+      currency?: string;
+      status: ItemSearchFilter["status"];
+      format: Format;
+    }) => {
+      const db = openDb(program);
+      const filter = buildItemFilter(db, options);
+      const results = searchItems(listExpenses(db), {
+        ...filter,
+        text: options.text,
+        category: options.category,
+        currency: options.currency,
+      });
+      writeOutput(io, options.format, stringifyBigInts(results), formatItemsText(results));
+    });
+
+  item
+    .command("edit")
+    .argument("<id>")
+    .option("--amount-minor <amount>", "Amount in minor units")
+    .option("--category <category>", "Category")
+    .option("--description <description>", "Description")
+    .option("--currency <currency>", "Currency")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((id: string, options: {
+      amountMinor?: string;
+      category?: string;
+      description?: string;
+      currency?: string;
+      format: Format;
+    }) => {
+      const db = openDb(program);
+      const result = editItem(listExpenses(db), id, {
+        amountMinor: options.amountMinor ? BigInt(options.amountMinor) : undefined,
+        category: options.category,
+        description: options.description,
+        currency: options.currency,
+        updatedAt: new Date().toISOString(),
+      });
+      if (result.kind === "not_found") {
+        throw new Error(`Item not found: ${id}`);
+      }
+      updateExpense(db, result.item);
+      writeOutput(io, options.format, stringifyBigInts(result.item), `Updated item ${id}`);
+    });
+
+  item
+    .command("delete")
+    .argument("<id>")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((id: string, options: { format: Format }) => {
+      const db = openDb(program);
+      const result = deleteItem(listExpenses(db), id, new Date().toISOString());
+      if (result.kind === "not_found") {
+        throw new Error(`Item not found: ${id}`);
+      }
+      updateExpense(db, result.item);
+      writeOutput(io, options.format, stringifyBigInts(result.item), `Deleted item ${id}`);
+    });
+
+  item
+    .command("restore")
+    .argument("<id>")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((id: string, options: { format: Format }) => {
+      const db = openDb(program);
+      const result = restoreItem(listExpenses(db), id);
+      if (result.kind === "not_found") {
+        throw new Error(`Item not found: ${id}`);
+      }
+      updateExpense(db, { ...result.item, updatedAt: new Date().toISOString() });
+      writeOutput(io, options.format, stringifyBigInts(result.item), `Restored item ${id}`);
+    });
+
+  return program;
+}
+
+const defaultIo: CliIo = {
+  stdout: (message) => console.log(message),
+  stderr: (message) => console.error(message),
+};
+
+function openDb(program: Command) {
+  const opts = program.opts<{ db: string }>();
+  mkdirSync(dirname(opts.db), { recursive: true });
+  return createDatabase(opts.db);
+}
+
+function defaultDbPath(): string {
+  return join(homedir(), ".expense-tracker", "expense-tracker.sqlite");
+}
+
+function parsePeople(value?: string): ParticipantId[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((person) => person.trim())
+    .filter(Boolean)
+    .map((person) => person as ParticipantId);
+}
+
+function createId(prefix: string, seed: string): string {
+  const normalized = seed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+  return `${prefix}_${normalized || Date.now().toString(36)}`;
+}
+
+function writeOutput(io: CliIo, format: Format, jsonValue: unknown, textValue: string): void {
+  if (format === "json") {
+    io.stdout(JSON.stringify(jsonValue));
+    return;
+  }
+  io.stdout(textValue);
+}
+
+function stringifyBigInts(value: unknown): unknown {
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (Array.isArray(value)) {
+    return value.map(stringifyBigInts);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, stringifyBigInts(child)]),
+    );
+  }
+  return value;
+}
+
+function formatSettlementText(settlement: ReturnType<typeof calculateSettlement>): string {
+  const lines: string[] = [];
+  for (const [currency, result] of Object.entries(settlement.byCurrency)) {
+    lines.push(currency);
+    for (const transfer of result.transfers) {
+      lines.push(`${transfer.from} -> ${transfer.to}: ${transfer.amountMinor.toString()} ${currency}`);
+    }
+  }
+  return lines.length > 0 ? lines.join("\n") : "No settlement needed";
+}
+
+function formatSummaryText(summary: EventSummary): string {
+  const lines = [
+    `${summary.event.name} (${summary.event.status})`,
+    `Participants: ${summary.event.participantIds.join(", ")}`,
+    `Active items: ${summary.activeItemCount}`,
+  ];
+
+  for (const [currency, total] of Object.entries(summary.totalsByCurrency)) {
+    lines.push(`Total ${currency}: ${total.toString()}`);
+  }
+
+  for (const [currency, categories] of Object.entries(summary.categoryTotals)) {
+    lines.push(`Categories ${currency}:`);
+    for (const [category, total] of Object.entries(categories)) {
+      lines.push(`- ${category}: ${total.toString()}`);
+    }
+  }
+
+  const settlementText = formatSettlementText({
+    byCurrency: summary.settlement,
+    categoryTotals: summary.categoryTotals,
+  });
+  lines.push("Settlement:");
+  lines.push(settlementText);
+
+  return lines.join("\n");
+}
+
+function buildItemFilter(
+  db: ReturnType<typeof openDb>,
+  options: { event?: string; status?: ItemSearchFilter["status"] },
+): ItemSearchFilter {
+  const filter: ItemSearchFilter = {
+    status: options.status,
+  };
+  if (options.event) {
+    const event = findEventByName(db, options.event);
+    if (!event) {
+      throw new Error(`Event not found: ${options.event}`);
+    }
+    filter.eventId = event.id;
+  }
+  return filter;
+}
+
+function formatItemsText(items: Array<{ id: string; amountMinor: bigint; currency: string; category: string; status: string }>): string {
+  if (items.length === 0) {
+    return "No items found";
+  }
+  return items
+    .map((item) => `${item.id} ${item.amountMinor.toString()} ${item.currency} ${item.category} ${item.status}`)
+    .join("\n");
+}
