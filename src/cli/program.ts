@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
-import { Command } from "commander";
+import { Command, CommanderError } from "commander";
 import { createDatabase } from "../adapters/sqlite/database.js";
 import {
   createEvent,
@@ -36,6 +36,9 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
     await program.parseAsync(argv, { from: "user" });
     return 0;
   } catch (error) {
+    if (error instanceof CommanderError && error.code === "commander.helpDisplayed") {
+      return 0;
+    }
     const message = error instanceof Error ? error.message : String(error);
     io.stderr(message);
     return 1;
@@ -50,9 +53,11 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .description("CLI-first agent-native expense tracker")
     .version("0.1.0")
     .option("--db <path>", "SQLite database path", defaultDbPath());
-  program.exitOverride((error) => {
-    throw new Error(error.message);
+  program.configureOutput({
+    writeOut: (message) => io.stdout(message.trimEnd()),
+    writeErr: (message) => io.stderr(message.trimEnd()),
   });
+  program.exitOverride();
 
   const event = program.command("event");
 
