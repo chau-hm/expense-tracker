@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "bin": {
-    "expense-tracker": "./dist/cli/index.js"
+    "expense-tracker": "./dist/cli/index.js",
+    "expense-openclaw": "./dist/cli/openclaw.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
