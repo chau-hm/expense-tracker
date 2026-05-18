@@ -145,6 +145,43 @@ expense-openclaw /expense event summary "Japan Trip"
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /expense event summary "Japan Trip"
 ```
 
+### 自然語言輸入
+
+在 OpenClaw / Telegram 入面，可以用自然語言講 expense。Agent 會先理解內容，再轉成 deterministic CLI arguments 執行；CLI/domain 仍然負責最終驗證和入帳。
+
+例子：
+
+```text
+/expense 交通費，$5.8
+```
+
+如果最近語境係 `Daily Expenses`，agent 可以轉成：
+
+```bash
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense expense add \
+  --event "Daily Expenses" \
+  --amount-minor 580 \
+  --category transport \
+  --description "交通費"
+```
+
+常見自然語言轉換：
+
+- `HKD 186` / `$186` 轉成 `--amount-minor 18600`
+- `交通費` 轉成 `--category transport`
+- `食飯` / `午餐` / `晚餐` 轉成 `--category food`
+- 無指定 `--paid-by` 時預設 `self`
+- 無指定 `--shared-by` 時預設 `self`
+- 無指定 currency 時使用 event default currency；event default 未指定時係 `HKD`
+
+如果缺少會影響入帳正確性的資料，agent 應該先追問，不應該亂入帳。通常需要追問嘅情況：
+
+- 未能確定 event，而且最近語境亦唔清楚
+- 金額或幣種有歧義
+- 付款人或分帳對象唔清楚，而且唔應該套用 `self`
+- category 無法合理判斷，而又不適合用 `general`
+
 Telegram native slash command menu 需要 gateway startup 時註冊。restart gateway 前先跑：
 
 ```bash
