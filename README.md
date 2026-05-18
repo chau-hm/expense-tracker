@@ -147,7 +147,7 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /e
 
 ### 自然語言輸入
 
-在 OpenClaw / Telegram 入面，可以用自然語言講 expense。Agent 會先理解內容，再轉成 deterministic CLI arguments 執行；CLI/domain 仍然負責最終驗證和入帳。
+在 OpenClaw / Telegram 入面，可以用自然語言講 expense。`chat parse` 會先將文字轉成 draft，同時產生 deterministic CLI arguments；CLI/domain 仍然負責最終驗證和入帳。呢個 parse step 本身不會寫入 expense。
 
 例子：
 
@@ -155,7 +155,14 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /e
 /expense 交通費，$5.8
 ```
 
-如果最近語境係 `Daily Expenses`，agent 可以轉成：
+如果最近語境係 `Daily Expenses`，agent 可以先 parse：
+
+```bash
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense chat parse --event "Daily Expenses" '交通費，$5.8'
+```
+
+draft 確認後再執行：
 
 ```bash
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
@@ -211,6 +218,7 @@ openclaw gateway restart
 - `docs/specs/event-export.md`
 - `docs/specs/receipt-storage.md`
 - `docs/specs/openclaw-wrapper.md`
+- `docs/specs/chat-intake.md`
 
 產品/架構文件放在 Obsidian vault：
 

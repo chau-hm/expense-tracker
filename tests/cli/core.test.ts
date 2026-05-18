@@ -120,6 +120,61 @@ describe("core CLI commands", () => {
     expect(errors).toEqual([]);
   });
 
+  it("parses natural-language chat expense input into a non-mutating draft", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "Daily Expenses"], io);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "chat",
+      "parse",
+      "--event",
+      "Daily Expenses",
+      "交通費，$5.8",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      kind: "draft",
+      draft: expect.objectContaining({
+        eventName: "Daily Expenses",
+        amountMinor: "580",
+        currency: "HKD",
+        category: "transport",
+        description: "交通費",
+        paidBy: "self",
+        sharedBy: ["self"],
+        needsConfirmation: true,
+        commandArgs: [
+          "expense",
+          "add",
+          "--event",
+          "Daily Expenses",
+          "--paid-by",
+          "self",
+          "--currency",
+          "HKD",
+          "--amount-minor",
+          "580",
+          "--shared-by",
+          "self",
+          "--category",
+          "transport",
+          "--description",
+          "交通費",
+        ],
+      }),
+    });
+
+    await runCli(["--db", dbPath, "event", "summary", "Daily Expenses", "--format", "json"], io);
+    expect(JSON.parse(output.pop() ?? "").activeItemCount).toBe(0);
+  });
+
   it("returns non-zero for missing events", async () => {
     const dbPath = tempDbPath();
     const errors: string[] = [];

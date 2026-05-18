@@ -72,6 +72,21 @@ describe("OpenClaw wrapper", () => {
     expect(output.join("\n")).toContain("Usage: expense-tracker");
   });
 
+  it("treats unknown slash command text as natural-language chat parse input", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await expect(runOpenClawCommand([
+      "--db",
+      dbPath,
+      "/expense",
+      "交通費，$5.8",
+    ], io)).resolves.toBe(0);
+
+    expect(output.pop()).toContain("Missing: event");
+  });
+
   it("keeps core CLI errors and exit codes", async () => {
     const errors: string[] = [];
 

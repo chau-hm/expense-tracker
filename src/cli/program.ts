@@ -22,6 +22,7 @@ import {
 import { calculateSettlement, type ParticipantId } from "../domain/settlement.js";
 import { summarizeEvent, type EventSummary } from "../domain/summary.js";
 import { exportEvent } from "../domain/export.js";
+import { parseChatExpense, type ChatParseResult } from "../domain/chat-intake.js";
 
 export type CliIo = {
   stdout: (message: string) => void;
@@ -181,6 +182,36 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       };
       insertExpense(db, expenseRecord);
       writeOutput(io, options.format, stringifyBigInts(expenseRecord), `Added expense ${expenseRecord.id}`);
+    });
+
+  const chat = program.command("chat");
+
+  chat
+    .command("parse")
+    .argument("<text...>")
+    .option("--event <name>", "Event context")
+    .option("--paid-by <participant>", "Payer participant ID", DEFAULT_PARTICIPANT_ID)
+    .option("--shared-by <people>", "Comma-separated participants", DEFAULT_PARTICIPANT_ID)
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((textParts: string[], options: {
+      event?: string;
+      paidBy: string;
+      sharedBy: string;
+      format: Format;
+    }) => {
+      const text = textParts.join(" ");
+      const db = openDb(program);
+      const eventRecord = options.event ? findEventByName(db, options.event) : undefined;
+      if (options.event && !eventRecord) {
+        throw new Error(`Event not found: ${options.event}`);
+      }
+      const result = parseChatExpense(text, {
+        eventName: eventRecord?.name,
+        defaultCurrency: eventRecord?.defaultCurrency,
+        paidBy: options.paidBy as ParticipantId,
+        sharedBy: parsePeople(options.sharedBy),
+      });
+      writeOutput(io, options.format, stringifyBigInts(result), formatChatParseText(result));
     });
 
   const item = program.command("item");
@@ -380,6 +411,32 @@ function formatSummaryText(summary: EventSummary): string {
   lines.push(settlementText);
 
   return lines.join("\n");
+}
+
+function formatChatParseText(result: ChatParseResult): string {
+  if (result.kind === "needs_clarification") {
+    return [
+      "Needs clarification before saving.",
+      `Missing: ${result.missing.join(", ")}`,
+      `Source: ${result.sourceText}`,
+    ].join("\n");
+  }
+
+  const draft = result.draft;
+  return [
+    "Draft expense (confirm before saving)",
+    `Event: ${draft.eventName}`,
+    `Amount: ${draft.amountMinor.toString()} ${draft.currency}`,
+    `Category: ${draft.category}`,
+    `Paid by: ${draft.paidBy}`,
+    `Shared by: ${draft.sharedBy.join(", ")}`,
+    `Description: ${draft.description}`,
+    `CLI: ${draft.commandArgs.map(quoteArg).join(" ")}`,
+  ].join("\n");
+}
+
+function quoteArg(arg: string): string {
+  return /\s/.test(arg) ? JSON.stringify(arg) : arg;
 }
 
 function buildItemFilter(
