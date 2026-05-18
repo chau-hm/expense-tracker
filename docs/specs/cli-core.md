@@ -15,10 +15,12 @@ This slice implements the first useful command path:
 - CLI can use a caller-provided SQLite database path.
 - `event create` creates an event and includes the default self participant when no people are supplied.
 - `event create` stores a default currency; when omitted it defaults to `HKD`.
-- `expense add` can add a shared expense to an event.
+- `expense add` can add shared, personal, and fronted personal expenses to an event.
 - `expense add` defaults omitted `--paid-by` and `--shared-by` to `self`.
 - `expense add` defaults omitted `--currency` to the event default currency.
 - `expense add` defaults omitted `--category` to `general`; chat/agent callers may choose a more specific category before invoking the CLI.
+- `expense add --type personal` defaults omitted `--owner` to `self` and does not affect settlement.
+- `expense add --type fronted-personal` requires `--beneficiary` and creates a direct repayment transfer from beneficiary to payer.
 - `event settle` calculates settlement from persisted expenses.
 - `--format json` returns machine-readable JSON.
 - Text output remains concise.

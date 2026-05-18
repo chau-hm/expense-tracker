@@ -70,6 +70,7 @@ expense-tracker event create "Japan Trip" --currency JPY --people A,B
 ```bash
 expense-tracker expense add \
   --event "Japan Trip" \
+  --type shared \
   --paid-by A \
   --currency HKD \
   --amount-minor 240000 \
@@ -83,6 +84,28 @@ expense-tracker expense add \
 
 ```bash
 expense-tracker expense add --event "Daily Expenses" --amount-minor 580
+```
+
+個人支出只計入 totals/category totals，不會產生 settlement：
+
+```bash
+expense-tracker expense add \
+  --event "Daily Expenses" \
+  --type personal \
+  --amount-minor 18600 \
+  --category food
+```
+
+幫人先付嘅個人支出會產生直接還款：
+
+```bash
+expense-tracker expense add \
+  --event "Japan Trip" \
+  --type fronted-personal \
+  --paid-by A \
+  --beneficiary B \
+  --amount-minor 3000 \
+  --category souvenir
 ```
 
 睇摘要：

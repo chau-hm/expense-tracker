@@ -7,6 +7,7 @@ import {
   createEvent,
   findEventByName,
   insertExpense,
+  type InsertExpenseInput,
   listExpenses,
   listEventExpenses,
   updateExpense,
@@ -33,6 +34,7 @@ type Format = "text" | "json";
 const DEFAULT_PARTICIPANT_ID = "self" as ParticipantId;
 const DEFAULT_CURRENCY = "HKD";
 const DEFAULT_CATEGORY = "general";
+type ExpenseTypeOption = "shared" | "personal" | "fronted-personal" | "fronted_personal";
 
 export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<number> {
   const program = buildProgram(io);
@@ -143,19 +145,25 @@ export function buildProgram(io: CliIo = defaultIo): Command {
   expense
     .command("add")
     .requiredOption("--event <name>", "Event name")
+    .option("--type <type>", "Expense type: shared, personal, fronted-personal", "shared")
     .option("--paid-by <participant>", "Payer participant ID", DEFAULT_PARTICIPANT_ID)
     .option("--currency <currency>", "Currency code")
     .requiredOption("--amount-minor <amount>", "Amount in minor units")
     .option("--shared-by <people>", "Comma-separated participants", DEFAULT_PARTICIPANT_ID)
+    .option("--owner <participant>", "Owner participant ID for personal expenses", DEFAULT_PARTICIPANT_ID)
+    .option("--beneficiary <participant>", "Beneficiary participant ID for fronted personal expenses")
     .option("--category <category>", "Expense category", DEFAULT_CATEGORY)
     .option("--description <description>", "Expense description")
     .option("--format <format>", "Output format: text or json", "text")
     .action((options: {
       event: string;
+      type: ExpenseTypeOption;
       paidBy: string;
       currency: string;
       amountMinor: string;
       sharedBy: string;
+      owner: string;
+      beneficiary?: string;
       category: string;
       description?: string;
       format: Format;
@@ -166,20 +174,20 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         throw new Error(`Event not found: ${options.event}`);
       }
       const now = new Date().toISOString();
-      const expenseRecord = {
+      const expenseType = normalizeExpenseType(options.type);
+      const expenseBase = {
         id: createId("exp", `${options.event}-${options.category}-${now}`),
         eventId: record.id,
-        type: "shared" as const,
         status: "active" as const,
         paidBy: options.paidBy as ParticipantId,
         currency: options.currency ?? record.defaultCurrency,
         amountMinor: BigInt(options.amountMinor),
         category: options.category,
         description: options.description,
-        participants: parsePeople(options.sharedBy),
         createdAt: now,
         updatedAt: now,
       };
+      const expenseRecord: InsertExpenseInput = createExpenseRecord(expenseType, expenseBase, options);
       insertExpense(db, expenseRecord);
       writeOutput(io, options.format, stringifyBigInts(expenseRecord), `Added expense ${expenseRecord.id}`);
     });
@@ -340,6 +348,47 @@ function parsePeople(value?: string): ParticipantId[] {
     .map((person) => person.trim())
     .filter(Boolean)
     .map((person) => person as ParticipantId);
+}
+
+function normalizeExpenseType(value: ExpenseTypeOption): "shared" | "personal" | "fronted_personal" {
+  if (value === "shared" || value === "personal" || value === "fronted_personal") {
+    return value;
+  }
+  if (value === "fronted-personal") {
+    return "fronted_personal";
+  }
+  throw new Error(`Invalid expense type: ${value}`);
+}
+
+function createExpenseRecord(
+  type: "shared" | "personal" | "fronted_personal",
+  base: Omit<InsertExpenseInput, "type">,
+  options: { sharedBy: string; owner: string; beneficiary?: string },
+): InsertExpenseInput {
+  if (type === "personal") {
+    return {
+      ...base,
+      type,
+      owner: options.owner as ParticipantId,
+    };
+  }
+
+  if (type === "fronted_personal") {
+    if (!options.beneficiary) {
+      throw new Error("Missing required option '--beneficiary <participant>' for fronted-personal expenses");
+    }
+    return {
+      ...base,
+      type,
+      beneficiary: options.beneficiary as ParticipantId,
+    };
+  }
+
+  return {
+    ...base,
+    type,
+    participants: parsePeople(options.sharedBy),
+  };
 }
 
 function createId(prefix: string, seed: string): string {

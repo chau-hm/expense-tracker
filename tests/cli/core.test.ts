@@ -175,6 +175,95 @@ describe("core CLI commands", () => {
     expect(JSON.parse(output.pop() ?? "").activeItemCount).toBe(0);
   });
 
+  it("adds personal expenses without settlement transfers", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "Daily Expenses"], io);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Daily Expenses",
+      "--type",
+      "personal",
+      "--amount-minor",
+      "18600",
+      "--category",
+      "food",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
+      type: "personal",
+      paidBy: "self",
+      owner: "self",
+      currency: "HKD",
+      amountMinor: "18600",
+      category: "food",
+    });
+
+    await runCli(["--db", dbPath, "event", "summary", "Daily Expenses", "--format", "json"], io);
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
+      activeItemCount: 1,
+      totalsByCurrency: { HKD: "18600" },
+      categoryTotals: { HKD: { food: "18600" } },
+      settlement: {},
+    });
+  });
+
+  it("adds fronted personal expenses as direct repayment transfers", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const errors: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: errors.push.bind(errors) };
+
+    await runCli(["--db", dbPath, "event", "create", "Trip", "--people", "A,B"], io);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--type",
+      "fronted-personal",
+      "--paid-by",
+      "A",
+      "--beneficiary",
+      "B",
+      "--amount-minor",
+      "3000",
+      "--category",
+      "souvenir",
+    ], io)).resolves.toBe(0);
+
+    await runCli(["--db", dbPath, "event", "settle", "Trip", "--format", "json"], io);
+    expect(JSON.parse(output.pop() ?? "").byCurrency.HKD.transfers).toEqual([
+      { from: "B", to: "A", amountMinor: "3000", currency: "HKD" },
+    ]);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--type",
+      "fronted-personal",
+      "--amount-minor",
+      "3000",
+    ], io)).resolves.toBe(1);
+    expect(errors.join("\n")).toContain("--beneficiary");
+  });
+
   it("returns non-zero for missing events", async () => {
     const dbPath = tempDbPath();
     const errors: string[] = [];
