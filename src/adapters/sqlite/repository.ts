@@ -18,6 +18,7 @@ import type {
 export type CreateEventInput = {
   id: string;
   name: string;
+  defaultCurrency: string;
   defaultParticipantId: ParticipantId;
   participants: ParticipantId[];
   createdAt: string;
@@ -26,6 +27,7 @@ export type CreateEventInput = {
 export type EventRecord = {
   id: string;
   name: string;
+  defaultCurrency: string;
   status: "active" | "closed";
   participantIds: ParticipantId[];
 };
@@ -58,6 +60,7 @@ export function createEvent(db: ExpenseTrackerDb, input: CreateEventInput): Even
   db.insert(events).values({
     id: input.id,
     name: input.name,
+    defaultCurrency: input.defaultCurrency,
     status: "active",
     createdAt: input.createdAt,
   }).run();
@@ -73,6 +76,7 @@ export function createEvent(db: ExpenseTrackerDb, input: CreateEventInput): Even
   return {
     id: input.id,
     name: input.name,
+    defaultCurrency: input.defaultCurrency,
     status: "active",
     participantIds,
   };
@@ -92,6 +96,7 @@ export function findEventByName(db: ExpenseTrackerDb, name: string): EventRecord
   return {
     id: event.id,
     name: event.name,
+    defaultCurrency: event.defaultCurrency,
     status: event.status,
     participantIds: sortParticipantIds(participantRows.map((row) => row.participantId as ParticipantId)),
   };

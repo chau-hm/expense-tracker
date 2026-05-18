@@ -29,6 +29,9 @@ export type CliIo = {
 };
 
 type Format = "text" | "json";
+const DEFAULT_PARTICIPANT_ID = "self" as ParticipantId;
+const DEFAULT_CURRENCY = "HKD";
+const DEFAULT_CATEGORY = "general";
 
 export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<number> {
   const program = buildProgram(io);
@@ -65,14 +68,16 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .command("create")
     .argument("<name>")
     .option("--people <people>", "Comma-separated participant IDs")
+    .option("--currency <currency>", "Default event currency", DEFAULT_CURRENCY)
     .option("--format <format>", "Output format: text or json", "text")
-    .action((name: string, options: { people?: string; format: Format }) => {
+    .action((name: string, options: { people?: string; currency: string; format: Format }) => {
       const db = openDb(program);
       const now = new Date().toISOString();
       const record = createEvent(db, {
         id: createId("evt", name),
         name,
-        defaultParticipantId: "self" as ParticipantId,
+        defaultCurrency: options.currency,
+        defaultParticipantId: DEFAULT_PARTICIPANT_ID,
         participants: parsePeople(options.people),
         createdAt: now,
       });
@@ -137,11 +142,11 @@ export function buildProgram(io: CliIo = defaultIo): Command {
   expense
     .command("add")
     .requiredOption("--event <name>", "Event name")
-    .requiredOption("--paid-by <participant>", "Payer participant ID")
-    .requiredOption("--currency <currency>", "Currency code")
+    .option("--paid-by <participant>", "Payer participant ID", DEFAULT_PARTICIPANT_ID)
+    .option("--currency <currency>", "Currency code")
     .requiredOption("--amount-minor <amount>", "Amount in minor units")
-    .requiredOption("--shared-by <people>", "Comma-separated participants")
-    .requiredOption("--category <category>", "Expense category")
+    .option("--shared-by <people>", "Comma-separated participants", DEFAULT_PARTICIPANT_ID)
+    .option("--category <category>", "Expense category", DEFAULT_CATEGORY)
     .option("--description <description>", "Expense description")
     .option("--format <format>", "Output format: text or json", "text")
     .action((options: {
@@ -166,7 +171,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         type: "shared" as const,
         status: "active" as const,
         paidBy: options.paidBy as ParticipantId,
-        currency: options.currency,
+        currency: options.currency ?? record.defaultCurrency,
         amountMinor: BigInt(options.amountMinor),
         category: options.category,
         description: options.description,

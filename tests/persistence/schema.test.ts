@@ -18,6 +18,7 @@ describe("SQLite repository", () => {
     const event = createEvent(db, {
       id: "evt_self",
       name: "Personal",
+      defaultCurrency: "HKD",
       defaultParticipantId: SELF,
       participants: [],
       createdAt: "2026-05-17T00:00:00.000Z",
@@ -26,6 +27,7 @@ describe("SQLite repository", () => {
     expect(event).toEqual({
       id: "evt_self",
       name: "Personal",
+      defaultCurrency: "HKD",
       participantIds: [SELF],
       status: "active",
     });
@@ -36,6 +38,7 @@ describe("SQLite repository", () => {
     createEvent(db, {
       id: "evt_trip",
       name: "Trip",
+      defaultCurrency: "JPY",
       defaultParticipantId: SELF,
       participants: [A, B],
       createdAt: "2026-05-17T00:00:00.000Z",
@@ -77,4 +80,3 @@ describe("SQLite repository", () => {
     ]);
   });
 });
-

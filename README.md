@@ -59,6 +59,12 @@ expense-openclaw
 expense-tracker event create "Japan Trip" --people A,B --format json
 ```
 
+未指定 `--currency` 時，event default currency 係 `HKD`。如要改：
+
+```bash
+expense-tracker event create "Japan Trip" --currency JPY --people A,B
+```
+
 加入 expense：
 
 ```bash
@@ -71,6 +77,12 @@ expense-tracker expense add \
   --category hotel \
   --description "Tokyo hotel" \
   --format json
+```
+
+快速個人入帳可以省略 payer、share-by、currency、category；預設係 `self` / event currency / `general`：
+
+```bash
+expense-tracker expense add --event "Daily Expenses" --amount-minor 580
 ```
 
 睇摘要：

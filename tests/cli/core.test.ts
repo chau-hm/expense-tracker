@@ -33,6 +33,7 @@ describe("core CLI commands", () => {
     expect(JSON.parse(output.pop() ?? "")).toEqual({
       id: expect.stringMatching(/^evt_/),
       name: "Japan Trip",
+      defaultCurrency: "HKD",
       status: "active",
       participantIds: ["self", "A", "B"],
     });
@@ -74,6 +75,51 @@ describe("core CLI commands", () => {
     ]);
   });
 
+  it("defaults event currency and personal expense fields for fast chat entry", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const errors: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: errors.push.bind(errors) };
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "event",
+      "create",
+      "Daily Expenses",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
+      name: "Daily Expenses",
+      defaultCurrency: "HKD",
+      participantIds: ["self"],
+    });
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Daily Expenses",
+      "--amount-minor",
+      "580",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
+      paidBy: "self",
+      currency: "HKD",
+      amountMinor: "580",
+      category: "general",
+      participants: ["self"],
+    });
+    expect(errors).toEqual([]);
+  });
+
   it("returns non-zero for missing events", async () => {
     const dbPath = tempDbPath();
     const errors: string[] = [];
@@ -95,4 +141,3 @@ function tempDbPath(): string {
   tempDirs.push(dir);
   return join(dir, "test.sqlite");
 }
-

@@ -8,6 +8,7 @@ import {
 export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  defaultCurrency: text("default_currency").notNull().default("HKD"),
   status: text("status", { enum: ["active", "closed"] }).notNull(),
   createdAt: text("created_at").notNull(),
   closedAt: text("closed_at"),
@@ -84,4 +85,3 @@ export const schema = {
   expenses,
   expenseParticipants,
 };
-

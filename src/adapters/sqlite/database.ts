@@ -25,11 +25,13 @@ function migrateIfNeeded(db: ExpenseTrackerDb): void {
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      default_currency TEXT NOT NULL DEFAULT 'HKD',
       status TEXT NOT NULL,
       created_at TEXT NOT NULL,
       closed_at TEXT
     )
   `);
+  addColumnIfMissing(db, "events", "default_currency TEXT NOT NULL DEFAULT 'HKD'");
   db.run(`
     CREATE TABLE IF NOT EXISTS participants (
       id TEXT PRIMARY KEY,
@@ -94,6 +96,7 @@ function migrate(db: ExpenseTrackerDb): void {
     CREATE TABLE events (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      default_currency TEXT NOT NULL DEFAULT 'HKD',
       status TEXT NOT NULL,
       created_at TEXT NOT NULL,
       closed_at TEXT
@@ -156,4 +159,16 @@ function migrate(db: ExpenseTrackerDb): void {
       PRIMARY KEY (expense_id, participant_id)
     )
   `);
+}
+
+function addColumnIfMissing(db: ExpenseTrackerDb, table: string, columnDefinition: string): void {
+  const columnName = columnDefinition.split(/\s+/, 1)[0];
+  const rows = (db as ExpenseTrackerDb & { $client: Database.Database })
+    .$client
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as Array<{ name: string }>;
+  if (rows.some((row) => row.name === columnName)) {
+    return;
+  }
+  db.run(`ALTER TABLE ${table} ADD COLUMN ${columnDefinition}`);
 }
