@@ -1,3 +1,8 @@
+import {
+  isChatEventIntentText,
+  isChatItemIntentText,
+  isChatItemMutationIntentText,
+} from "../domain/chat-intake.js";
 import { runCli, type CliIo } from "./program.js";
 
 const STRIPPED_PREFIXES = new Set(["/expense", "expense"]);
@@ -58,10 +63,35 @@ function normalizeNaturalLanguageFallback(argv: string[]): string[] {
   if (TOP_LEVEL_COMMANDS.has(command)) {
     return argv;
   }
+  const text = argv.slice(firstCommandIndex).join(" ");
+  if (isChatItemMutationIntentText(text)) {
+    return [
+      ...argv.slice(0, firstCommandIndex),
+      "chat",
+      "item",
+      text,
+    ];
+  }
+  if (isChatEventIntentText(text)) {
+    return [
+      ...argv.slice(0, firstCommandIndex),
+      "chat",
+      "event",
+      text,
+    ];
+  }
+  if (isChatItemIntentText(text)) {
+    return [
+      ...argv.slice(0, firstCommandIndex),
+      "chat",
+      "items",
+      text,
+    ];
+  }
   return [
     ...argv.slice(0, firstCommandIndex),
     "chat",
     "parse",
-    argv.slice(firstCommandIndex).join(" "),
+    text,
   ];
 }

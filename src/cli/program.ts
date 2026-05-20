@@ -16,6 +16,7 @@ import {
   deleteItem,
   editItem,
   listItems,
+  resolveItemTarget,
   restoreItem,
   searchItems,
   type ItemSearchFilter,
@@ -23,7 +24,20 @@ import {
 import { calculateSettlement, type ParticipantId } from "../domain/settlement.js";
 import { summarizeEvent, type EventSummary } from "../domain/summary.js";
 import { exportEvent } from "../domain/export.js";
-import { parseChatExpense, type ChatParseResult } from "../domain/chat-intake.js";
+import {
+  applyCorrectionToDraft,
+  parseChatCorrection,
+  parseChatExpense,
+  parseChatEventIntent,
+  parseChatItemIntent,
+  parseChatItemMutationIntent,
+  type ChatCorrectionPatch,
+  type ChatEventIntent,
+  type ChatExpenseDraft,
+  type ChatItemIntent,
+  type ChatItemMutationIntent,
+  type ChatParseResult,
+} from "../domain/chat-intake.js";
 
 export type CliIo = {
   stdout: (message: string) => void;
@@ -220,6 +234,205 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         sharedBy: parsePeople(options.sharedBy),
       });
       writeOutput(io, options.format, stringifyBigInts(result), formatChatParseText(result));
+    });
+
+  chat
+    .command("correct")
+    .argument("<text...>")
+    .option("--draft-json <json>", "Draft JSON to correct without saving")
+    .option("--event <name>", "Event context for saved item correction")
+    .option("--item-id <id>", "Exact saved item ID to correct")
+    .option("--text <query>", "Saved item search text to correct")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((textParts: string[], options: {
+      draftJson?: string;
+      event?: string;
+      itemId?: string;
+      text?: string;
+      format: Format;
+    }) => {
+      const text = textParts.join(" ");
+      const db = openDb(program);
+      const eventRecord = options.event ? findEventByName(db, options.event) : undefined;
+      if (options.event && !eventRecord) {
+        throw new Error(`Event not found: ${options.event}`);
+      }
+
+      const correction = parseChatCorrection(text, {
+        defaultCurrency: eventRecord?.defaultCurrency,
+      });
+      if (correction.kind === "needs_clarification") {
+        writeOutput(io, options.format, stringifyBigInts(correction), formatChatCorrectionText(correction));
+        return;
+      }
+
+      if (options.draftJson) {
+        const draft = parseDraftJson(options.draftJson);
+        const corrected = applyCorrectionToDraft(draft, correction.patch);
+        const result = { kind: "corrected_draft" as const, draft: corrected };
+        writeOutput(io, options.format, stringifyBigInts(result), formatCorrectedDraftText(corrected));
+        return;
+      }
+
+      if (!eventRecord) {
+        throw new Error("Missing required option '--event <name>' for saved item correction");
+      }
+      if (!options.itemId && !options.text) {
+        throw new Error("Missing saved item target: provide '--item-id <id>' or '--text <query>'");
+      }
+
+      const items = listExpenses(db);
+      const target = resolveItemTarget(items, {
+        id: options.itemId,
+        text: options.text,
+        eventId: eventRecord.id,
+        status: "active",
+      });
+      if (target.kind !== "selected") {
+        const result = { kind: target.kind, candidates: target.candidates };
+        writeOutput(io, options.format, stringifyBigInts(result), formatItemTargetText(result));
+        return;
+      }
+
+      const updateResult = editItem(items, target.item.id, toItemPatch(correction.patch));
+      if (updateResult.kind === "not_found") {
+        throw new Error(`Item not found: ${target.item.id}`);
+      }
+      updateExpense(db, updateResult.item);
+      const result = { kind: "updated_item" as const, item: updateResult.item };
+      writeOutput(io, options.format, stringifyBigInts(result), `Updated item ${updateResult.item.id}`);
+    });
+
+  chat
+    .command("items")
+    .argument("<text...>")
+    .option("--event <name>", "Event context")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((textParts: string[], options: {
+      event?: string;
+      format: Format;
+    }) => {
+      const text = textParts.join(" ");
+      const db = openDb(program);
+      const eventRecord = options.event ? findEventByName(db, options.event) : undefined;
+      if (options.event && !eventRecord) {
+        throw new Error(`Event not found: ${options.event}`);
+      }
+      const intent = parseChatItemIntent(text, {
+        eventName: eventRecord?.name,
+      });
+      const filter = eventRecord ? { eventId: eventRecord.id, status: "active" as const } : { status: "active" as const };
+      const results = intent.kind === "item_list"
+        ? listItems(listExpenses(db), filter)
+        : searchItems(listExpenses(db), {
+          ...filter,
+          text: intent.text,
+          category: intent.category,
+        });
+      const result = { ...intent, items: results };
+      writeOutput(io, options.format, stringifyBigInts(result), formatChatItemsText(intent, results));
+    });
+
+  chat
+    .command("item")
+    .argument("<text...>")
+    .option("--event <name>", "Event context")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((textParts: string[], options: {
+      event?: string;
+      format: Format;
+    }) => {
+      const text = textParts.join(" ");
+      const db = openDb(program);
+      const eventRecord = options.event ? findEventByName(db, options.event) : undefined;
+      if (options.event && !eventRecord) {
+        throw new Error(`Event not found: ${options.event}`);
+      }
+      const intent = parseChatItemMutationIntent(text, {
+        eventName: eventRecord?.name,
+      });
+      if (!intent.targetId && !intent.targetText) {
+        const result = {
+          kind: "needs_clarification" as const,
+          missing: ["target"],
+          sourceText: intent.sourceText,
+        };
+        writeOutput(io, options.format, stringifyBigInts(result), formatChatItemMutationText(result));
+        return;
+      }
+      const status = intent.action === "restore" ? "deleted" : "active";
+      const target = resolveItemTarget(listExpenses(db), {
+        id: intent.targetId,
+        text: intent.targetText,
+        eventId: eventRecord?.id,
+        status,
+      });
+
+      if (target.kind !== "selected") {
+        const result = { kind: target.kind, action: intent.action, candidates: target.candidates };
+        writeOutput(io, options.format, stringifyBigInts(result), formatItemTargetText(result));
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const items = listExpenses(db);
+      const mutation = applyChatItemMutation(items, intent, target.item.id, now, eventRecord?.defaultCurrency);
+      if (mutation.kind === "needs_clarification") {
+        writeOutput(io, options.format, stringifyBigInts(mutation), formatChatItemMutationText(mutation));
+        return;
+      }
+      if (mutation.kind === "not_found") {
+        throw new Error(`Item not found: ${target.item.id}`);
+      }
+
+      updateExpense(db, mutation.item);
+      const result = { kind: "updated_item" as const, action: intent.action, item: mutation.item };
+      writeOutput(io, options.format, stringifyBigInts(result), `Updated item ${mutation.item.id}`);
+    });
+
+  chat
+    .command("event")
+    .argument("<text...>")
+    .option("--event <name>", "Event context")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((textParts: string[], options: {
+      event?: string;
+      format: Format;
+    }) => {
+      const text = textParts.join(" ");
+      const db = openDb(program);
+      const intent = parseChatEventIntent(text, { eventName: options.event });
+      if (!intent.eventName) {
+        const result = {
+          kind: "needs_clarification" as const,
+          missing: ["event"],
+          sourceText: intent.sourceText,
+        };
+        writeOutput(io, options.format, stringifyBigInts(result), formatChatEventClarificationText(result));
+        return;
+      }
+
+      const record = findEventByName(db, intent.eventName);
+      if (!record) {
+        throw new Error(`Event not found: ${intent.eventName}`);
+      }
+
+      if (intent.kind === "event_settlement") {
+        const settlement = calculateSettlement({
+          participants: record.participantIds,
+          expenses: listEventExpenses(db, record.id),
+        });
+        const result = { ...intent, event: record, settlement };
+        writeOutput(io, options.format, stringifyBigInts(result), formatChatSettlementText(intent, settlement));
+        return;
+      }
+
+      const summary = summarizeEvent({
+        event: record,
+        expenses: listEventExpenses(db, record.id),
+      });
+      const result = { ...intent, summary };
+      writeOutput(io, options.format, stringifyBigInts(result), formatChatSummaryText(intent, summary));
     });
 
   const item = program.command("item");
@@ -484,6 +697,149 @@ function formatChatParseText(result: ChatParseResult): string {
   ].join("\n");
 }
 
+function formatChatCorrectionText(result: ReturnType<typeof parseChatCorrection>): string {
+  if (result.kind === "needs_clarification") {
+    return [
+      "Needs clarification before correcting.",
+      `Missing: ${result.missing.join(", ")}`,
+      `Source: ${result.sourceText}`,
+    ].join("\n");
+  }
+
+  return `Correction patch: ${Object.keys(result.patch).join(", ")}`;
+}
+
+function formatCorrectedDraftText(draft: ChatExpenseDraft): string {
+  return [
+    "Corrected draft expense (confirm before saving)",
+    `Event: ${draft.eventName}`,
+    `Amount: ${draft.amountMinor.toString()} ${draft.currency}`,
+    `Category: ${draft.category}`,
+    `Paid by: ${draft.paidBy}`,
+    `Shared by: ${draft.sharedBy.join(", ")}`,
+    `Description: ${draft.description}`,
+    `CLI: ${draft.commandArgs.map(quoteArg).join(" ")}`,
+  ].join("\n");
+}
+
+function formatItemTargetText(result: { kind: "ambiguous" | "not_found"; candidates: Array<{ id: string; amountMinor: bigint; currency: string; category: string; description?: string; status: string }> }): string {
+  if (result.kind === "not_found") {
+    return "No matching item found";
+  }
+  return [
+    "Multiple matching items found. Choose one item ID before correcting.",
+    formatItemsText(result.candidates),
+  ].join("\n");
+}
+
+function formatChatItemMutationText(result: { kind: "needs_clarification"; missing: string[]; sourceText: string }): string {
+  return [
+    "Needs clarification before mutating item.",
+    `Missing: ${result.missing.join(", ")}`,
+    `Source: ${result.sourceText}`,
+  ].join("\n");
+}
+
+function formatChatEventClarificationText(result: { kind: "needs_clarification"; missing: string[]; sourceText: string }): string {
+  return [
+    "Needs event before showing summary or settlement.",
+    `Missing: ${result.missing.join(", ")}`,
+    `Source: ${result.sourceText}`,
+  ].join("\n");
+}
+
+function formatChatItemsText(intent: ChatItemIntent, items: Array<{ id: string; amountMinor: bigint; currency: string; category: string; description?: string; status: string }>): string {
+  const heading = intent.kind === "item_list" ? "Items" : "Matching items";
+  return [heading, formatItemsText(items)].join("\n");
+}
+
+function formatChatSummaryText(intent: ChatEventIntent, summary: EventSummary): string {
+  return [
+    `Summary: ${intent.eventName}`,
+    formatSummaryText(summary),
+  ].join("\n");
+}
+
+function formatChatSettlementText(
+  intent: ChatEventIntent,
+  settlement: ReturnType<typeof calculateSettlement>,
+): string {
+  return [
+    `Settlement: ${intent.eventName}`,
+    formatSettlementText(settlement),
+  ].join("\n");
+}
+
+function parseDraftJson(value: string): ChatExpenseDraft {
+  const raw = JSON.parse(value) as unknown;
+  const parsed = isDraftParseResult(raw) ? raw.draft : raw as Omit<ChatExpenseDraft, "amountMinor"> & { amountMinor: string | number | bigint };
+  return {
+    ...parsed,
+    amountMinor: BigInt(parsed.amountMinor),
+    paidBy: parsed.paidBy as ParticipantId,
+    sharedBy: parsed.sharedBy.map((person) => person as ParticipantId),
+    needsConfirmation: true,
+  };
+}
+
+function isDraftParseResult(value: unknown): value is { kind: "draft"; draft: Omit<ChatExpenseDraft, "amountMinor"> & { amountMinor: string | number | bigint } } {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "kind" in value &&
+      value.kind === "draft" &&
+      "draft" in value,
+  );
+}
+
+function toItemPatch(patch: ChatCorrectionPatch) {
+  return {
+    amountMinor: patch.amountMinor,
+    currency: patch.currency,
+    category: patch.category,
+    description: patch.description,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function applyChatItemMutation(
+  items: ReturnType<typeof listExpenses>,
+  intent: ChatItemMutationIntent,
+  itemId: string,
+  updatedAt: string,
+  defaultCurrency?: string,
+) {
+  if (intent.action === "delete") {
+    return deleteItem(items, itemId, updatedAt);
+  }
+  if (intent.action === "restore") {
+    const result = restoreItem(items, itemId);
+    if (result.kind === "not_found") {
+      return result;
+    }
+    return {
+      ...result,
+      item: {
+        ...result.item,
+        updatedAt,
+      },
+    };
+  }
+
+  if (!intent.correctionText) {
+    return {
+      kind: "needs_clarification" as const,
+      missing: ["correction"],
+      sourceText: intent.sourceText,
+    };
+  }
+  const correction = parseChatCorrection(intent.correctionText, { defaultCurrency });
+  if (correction.kind === "needs_clarification") {
+    return correction;
+  }
+  return editItem(items, itemId, toItemPatch(correction.patch));
+}
+
 function quoteArg(arg: string): string {
   return /\s/.test(arg) ? JSON.stringify(arg) : arg;
 }
@@ -505,11 +861,18 @@ function buildItemFilter(
   return filter;
 }
 
-function formatItemsText(items: Array<{ id: string; amountMinor: bigint; currency: string; category: string; status: string }>): string {
+function formatItemsText(items: Array<{ id: string; amountMinor: bigint; currency: string; category: string; description?: string; status: string }>): string {
   if (items.length === 0) {
     return "No items found";
   }
   return items
-    .map((item) => `${item.id} ${item.amountMinor.toString()} ${item.currency} ${item.category} ${item.status}`)
+    .map((item) => [
+      item.id,
+      item.amountMinor.toString(),
+      item.currency,
+      item.category,
+      item.description,
+      item.status,
+    ].filter(Boolean).join(" "))
     .join("\n");
 }

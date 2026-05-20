@@ -87,6 +87,177 @@ describe("OpenClaw wrapper", () => {
     expect(output.pop()).toContain("Missing: event");
   });
 
+  it("corrects a draft JSON without saving it", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runOpenClawCommand([
+      "--db",
+      dbPath,
+      "event",
+      "create",
+      "Daily Expenses",
+    ], io);
+    await runOpenClawCommand([
+      "--db",
+      dbPath,
+      "chat",
+      "parse",
+      "交通費，$5.8",
+      "--event",
+      "Daily Expenses",
+      "--format",
+      "json",
+    ], io);
+    const parsed = JSON.parse(output.pop() ?? "");
+
+    await expect(runOpenClawCommand([
+      "--db",
+      dbPath,
+      "chat",
+      "correct",
+      "改做 $6",
+      "--draft-json",
+      JSON.stringify(parsed),
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      kind: "corrected_draft",
+      draft: expect.objectContaining({
+        amountMinor: "600",
+        commandArgs: expect.arrayContaining(["600"]),
+      }),
+    });
+  });
+
+  it("routes list/search text to read-only item intent handling", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runOpenClawCommand(["--db", dbPath, "event", "create", "Daily Expenses"], io);
+    await runOpenClawCommand([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Daily Expenses",
+      "--amount-minor",
+      "580",
+      "--category",
+      "transport",
+      "--description",
+      "taxi",
+    ], io);
+    await runOpenClawCommand([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Daily Expenses",
+      "--amount-minor",
+      "6800",
+      "--category",
+      "food",
+      "--description",
+      "lunch",
+    ], io);
+
+    await expect(runOpenClawCommand([
+      "--db",
+      dbPath,
+      "/expense",
+      "list",
+      "taxi",
+    ], io)).resolves.toBe(0);
+
+    const result = output.pop() ?? "";
+    expect(result).toContain("taxi");
+    expect(result).not.toContain("lunch");
+  });
+
+  it("routes mutation text to safe chat item mutation handling", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runOpenClawCommand(["--db", dbPath, "event", "create", "Daily Expenses"], io);
+    await runOpenClawCommand([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Daily Expenses",
+      "--amount-minor",
+      "580",
+      "--category",
+      "transport",
+      "--description",
+      "taxi",
+      "--format",
+      "json",
+    ], io);
+    const added = JSON.parse(output.pop() ?? "");
+
+    await expect(runOpenClawCommand([
+      "--db",
+      dbPath,
+      "/expense",
+      "delete",
+      added.id,
+    ], io)).resolves.toBe(0);
+
+    expect(output.pop()).toContain("Updated item");
+  });
+
+  it("routes summary and settlement text to chat event responses", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runOpenClawCommand(["--db", dbPath, "event", "create", "Trip", "--people", "A,B"], io);
+    await runOpenClawCommand([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--paid-by",
+      "A",
+      "--amount-minor",
+      "240000",
+      "--shared-by",
+      "A,B",
+      "--category",
+      "flight",
+    ], io);
+
+    await expect(runOpenClawCommand([
+      "--db",
+      dbPath,
+      "/expense",
+      "summary",
+      "Trip",
+    ], io)).resolves.toBe(0);
+    expect(output.pop()).toContain("Summary: Trip");
+
+    await expect(runOpenClawCommand([
+      "--db",
+      dbPath,
+      "/expense",
+      "settle",
+      "Trip",
+    ], io)).resolves.toBe(0);
+    expect(output.pop()).toContain("B -> A: 120000 HKD");
+  });
+
   it("keeps core CLI errors and exit codes", async () => {
     const errors: string[] = [];
 

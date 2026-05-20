@@ -9,6 +9,7 @@ Agent-native expense tracker，主介面預設係聊天 / slash command，而唔
 - event 建立、結算、摘要、匯出
 - shared expense 平均分帳
 - item list/search/edit/delete/restore
+- chat intake Phase 2：自然語言 draft、correction、item list/search、item edit/delete/restore、event summary/settlement
 - SQLite persistence
 - 本地 receipt image storage skeleton
 - OpenClaw wrapper：`expense-openclaw`
@@ -168,9 +169,11 @@ expense-openclaw /expense event summary "Japan Trip"
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /expense event summary "Japan Trip"
 ```
 
-### 自然語言輸入
+### 自然語言用法
 
-在 OpenClaw / Telegram 入面，可以用自然語言講 expense。`chat parse` 會先將文字轉成 draft，同時產生 deterministic CLI arguments；CLI/domain 仍然負責最終驗證和入帳。呢個 parse step 本身不會寫入 expense。
+在 OpenClaw / Telegram 入面，可以用自然語言查數、改 draft、管理 items、睇 summary/settlement。wrapper 會先判斷 intent，再 route 去 deterministic CLI/domain；LLM/agent 只負責理解語句，最後金額、target resolution、settlement 都由 CLI/domain 驗證。
+
+#### 1. 新增 expense draft
 
 例子：
 
@@ -178,14 +181,14 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /e
 /expense 交通費，$5.8
 ```
 
-如果最近語境係 `Daily Expenses`，agent 可以先 parse：
+自然語言新增支出會先產生 draft，不會即刻寫入 DB：
 
 ```bash
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
   /expense chat parse --event "Daily Expenses" '交通費，$5.8'
 ```
 
-draft 確認後再執行：
+draft 確認後，先執行生成出嚟嘅 deterministic `expense add`：
 
 ```bash
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
@@ -205,12 +208,91 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
 - 無指定 `--shared-by` 時預設 `self`
 - 無指定 currency 時使用 event default currency；event default 未指定時係 `HKD`
 
+#### 2. 修正 draft 或已儲存 item
+
+修正 draft：
+
+```bash
+draft=$(expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense chat parse --event "Daily Expenses" '交通費，$5.8' --format json)
+
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense chat correct '改做 $6' --draft-json "$draft"
+```
+
+修正已儲存 item 時，一定要 resolve 到單一 target 先會改 DB：
+
+```text
+/expense edit exp_daily_expenses_transport_xxx 改做 $6
+/expense edit taxi 改做 $6
+```
+
+如果 `taxi` match 到多個 item，CLI 只會列 candidates，不會改 DB。
+
+#### 3. List/search items
+
+```text
+/expense list
+/expense list taxi
+/expense search food
+/expense 搵 taxi
+```
+
+等價 CLI：
+
+```bash
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense chat items 'list taxi' --event "Daily Expenses"
+```
+
+`list/search` 是 read-only，不會改 DB。文字內有 `taxi`、`transport`、`food`、`午餐` 等常見字眼時，會做簡單 category inference。
+
+#### 4. Edit/delete/restore items
+
+```text
+/expense edit taxi 改做 $6
+/expense edit exp_daily_expenses_transport_xxx category:transport
+/expense delete taxi
+/expense delete exp_daily_expenses_transport_xxx
+/expense restore exp_daily_expenses_transport_xxx
+```
+
+安全規則：
+
+- exact `exp_...` item id 可以直接 target。
+- text target 會先 search candidates。
+- edit/delete 只 search active items。
+- restore 只 search deleted items。
+- target missing 或 ambiguous 時，只回 clarification/candidates，不會 mutate DB。
+- edit 無 supported correction patch 時，不會 mutate DB。
+
+#### 5. Event summary / settlement
+
+```text
+/expense summary Trip
+/expense settle Trip
+/expense settlement "Japan Trip"
+```
+
+等價 CLI：
+
+```bash
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense chat event 'summary Trip'
+
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense chat event 'settle Trip'
+```
+
+summary 會顯示 event status、participants、active item count、currency totals、category totals、settlement。settlement 會按 currency group transfers；無數要夾會顯示 `No settlement needed`。
+
 如果缺少會影響入帳正確性的資料，agent 應該先追問，不應該亂入帳。通常需要追問嘅情況：
 
 - 未能確定 event，而且最近語境亦唔清楚
 - 金額或幣種有歧義
 - 付款人或分帳對象唔清楚，而且唔應該套用 `self`
 - category 無法合理判斷，而又不適合用 `general`
+- edit/delete/restore target 有多個 candidates
 
 Telegram native slash command menu 需要 gateway startup 時註冊。restart gateway 前先跑：
 

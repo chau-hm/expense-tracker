@@ -131,6 +131,222 @@ describe("item CLI commands", () => {
 
     expect(errors.join("\n")).toContain("Item not found");
   });
+
+  it("corrects a saved item only when the chat target is unambiguous", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const errors: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: errors.push.bind(errors) };
+
+    await runCli(["--db", dbPath, "event", "create", "Trip"], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--amount-minor",
+      "580",
+      "--category",
+      "transport",
+      "--description",
+      "taxi",
+      "--format",
+      "json",
+    ], io);
+    const taxiItem = JSON.parse(output.pop() ?? "");
+    await runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--amount-minor",
+      "6800",
+      "--category",
+      "food",
+      "--description",
+      "lunch",
+    ], io);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "chat",
+      "correct",
+      "改做 $6",
+      "--event",
+      "Trip",
+      "--text",
+      "taxi",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      kind: "updated_item",
+      item: expect.objectContaining({
+        id: taxiItem.id,
+        amountMinor: "600",
+        currency: "HKD",
+      }),
+    });
+
+    await runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--amount-minor",
+      "300",
+      "--category",
+      "transport",
+      "--description",
+      "taxi toll",
+    ], io);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "chat",
+      "correct",
+      "改做 $7",
+      "--event",
+      "Trip",
+      "--text",
+      "taxi",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      kind: "ambiguous",
+      candidates: expect.arrayContaining([
+        expect.objectContaining({ id: taxiItem.id, amountMinor: "600" }),
+      ]),
+    });
+  });
+
+  it("applies chat item edit/delete/restore only after a single target is resolved", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const errors: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: errors.push.bind(errors) };
+
+    await runCli(["--db", dbPath, "event", "create", "Trip"], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--amount-minor",
+      "580",
+      "--category",
+      "transport",
+      "--description",
+      "taxi",
+      "--format",
+      "json",
+    ], io);
+    const taxiItem = JSON.parse(output.pop() ?? "");
+    await runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--amount-minor",
+      "300",
+      "--category",
+      "transport",
+      "--description",
+      "taxi toll",
+    ], io);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "chat",
+      "item",
+      "delete taxi",
+      "--event",
+      "Trip",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      kind: "ambiguous",
+      action: "delete",
+      candidates: expect.arrayContaining([
+        expect.objectContaining({ id: taxiItem.id, status: "active" }),
+      ]),
+    });
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "chat",
+      "item",
+      `edit ${taxiItem.id} 改做 $6`,
+      "--event",
+      "Trip",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      kind: "updated_item",
+      action: "edit",
+      item: expect.objectContaining({
+        id: taxiItem.id,
+        amountMinor: "600",
+      }),
+    });
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "chat",
+      "item",
+      `delete ${taxiItem.id}`,
+      "--event",
+      "Trip",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      kind: "updated_item",
+      action: "delete",
+      item: expect.objectContaining({
+        id: taxiItem.id,
+        status: "deleted",
+      }),
+    });
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "chat",
+      "item",
+      `restore ${taxiItem.id}`,
+      "--event",
+      "Trip",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      kind: "updated_item",
+      action: "restore",
+      item: expect.objectContaining({
+        id: taxiItem.id,
+        status: "active",
+      }),
+    });
+  });
 });
 
 function tempDbPath(): string {
@@ -138,4 +354,3 @@ function tempDbPath(): string {
   tempDirs.push(dir);
   return join(dir, "test.sqlite");
 }
-
