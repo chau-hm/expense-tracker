@@ -15,6 +15,8 @@ This slice implements the first useful command path:
 - CLI can use a caller-provided SQLite database path.
 - `event create` creates an event and includes the default self participant when no people are supplied.
 - `event create` stores a default currency; when omitted it defaults to `HKD`.
+- `event create` should support an ordered supported currency list for receipt/OCR context; when omitted it defaults to the default currency.
+- `event create` should support ordered OCR language preferences; when omitted they are inferred from supported currencies.
 - `expense add` can add shared, personal, and fronted personal expenses to an event.
 - `expense add` defaults omitted `--paid-by` and `--shared-by` to `self`.
 - `expense add` defaults omitted `--currency` to the event default currency.
@@ -32,3 +34,14 @@ This slice implements the first useful command path:
 - Receipt ingestion
 - Item list/search/edit/delete CLI
 - Telegram/OpenClaw slash-command routing
+
+## Future Event OCR Options
+
+This slice currently implements only default currency. Before receipt OCR implementation, event creation should be extended according to `docs/specs/event-ocr-language-preferences.md`:
+
+```sh
+expense-tracker event create "Japan Trip" --currency HKD --currencies HKD,JPY
+expense-tracker event create "Japan Trip" --currency HKD --currencies HKD,JPY --ocr-languages zh,en,jp
+```
+
+`--currency` remains the default expense currency. `--currencies` is the event's supported currency list. `--ocr-languages` is an ordered manual override; otherwise OCR language preferences are inferred from supported currencies.

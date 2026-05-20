@@ -322,6 +322,7 @@ openclaw gateway restart
 - `docs/specs/event-summary.md`
 - `docs/specs/event-export.md`
 - `docs/specs/receipt-storage.md`
+- `docs/specs/event-ocr-language-preferences.md`
 - `docs/specs/openclaw-wrapper.md`
 - `docs/specs/chat-intake.md`
 
