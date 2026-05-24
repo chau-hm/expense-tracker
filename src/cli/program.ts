@@ -50,6 +50,7 @@ import { normalizeOcrLanguagePreferences } from "../domain/event-ocr-context.js"
 import {
   averageReceiptOcrConfidence,
   extractReceiptDraft,
+  type ExtractedReceiptItem,
   formatReceiptOcrText,
 } from "../domain/receipt-ocr.js";
 
@@ -616,6 +617,75 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     });
 
   receipt
+    .command("confirm")
+    .argument("<id>")
+    .requiredOption("--event <name>", "Event to save confirmed receipt items into")
+    .option("--type <type>", "Expense type: shared, personal, fronted-personal", "shared")
+    .option("--paid-by <participant>", "Payer participant ID", DEFAULT_PARTICIPANT_ID)
+    .option("--shared-by <people>", "Comma-separated participants", DEFAULT_PARTICIPANT_ID)
+    .option("--owner <participant>", "Owner participant ID for personal expenses", DEFAULT_PARTICIPANT_ID)
+    .option("--beneficiary <participant>", "Beneficiary participant ID for fronted personal expenses")
+    .option("--category <category>", "Expense category", "food")
+    .option("--description <description>", "Override description for single-total fallback")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((id: string, options: {
+      event: string;
+      type: ExpenseTypeOption;
+      paidBy: string;
+      sharedBy: string;
+      owner: string;
+      beneficiary?: string;
+      category: string;
+      description?: string;
+      format: Format;
+    }) => {
+      const db = openDb(program);
+      const receiptRecord = getReceipt(db, id);
+      if (!receiptRecord) {
+        throw new Error(`Receipt not found: ${id}`);
+      }
+      const eventRecord = findEventByName(db, options.event);
+      if (!eventRecord) {
+        throw new Error(`Event not found: ${options.event}`);
+      }
+
+      const now = new Date().toISOString();
+      const confirmedItems = receiptDraftItems(receiptRecord);
+      const expenseType = normalizeExpenseType(options.type);
+      const expenses = confirmedItems.map((item, index) => {
+        const description = item.name ?? options.description ?? `Receipt ${id}`;
+        const base = {
+          id: createId("exp", `${options.event}-${id}-${index}-${description}-${now}`),
+          eventId: eventRecord.id,
+          receiptId: id,
+          status: "active" as const,
+          paidBy: options.paidBy as ParticipantId,
+          currency: eventRecord.defaultCurrency,
+          amountMinor: decimalToMinorUnits(item.amount),
+          category: options.category,
+          description,
+          incurredAt: undefined,
+          createdAt: now,
+          updatedAt: now,
+        };
+        return createExpenseRecord(expenseType, base, options);
+      });
+
+      for (const expense of expenses) {
+        insertExpense(db, expense);
+      }
+
+      const result = {
+        kind: "receipt_confirmed" as const,
+        receiptId: id,
+        event: eventRecord.name,
+        itemCount: expenses.length,
+        expenses,
+      };
+      writeOutput(io, options.format, stringifyBigInts(result), formatReceiptConfirmText(result));
+    });
+
+  receipt
     .command("image")
     .command("delete")
     .argument("<id>")
@@ -714,6 +784,56 @@ function createId(prefix: string, seed: string): string {
     .replace(/^_+|_+$/g, "")
     .slice(0, 48);
   return `${prefix}_${normalized || Date.now().toString(36)}`;
+}
+
+function receiptDraftItems(receipt: { extractedItemsJson?: string; extractedTotal?: string }): Array<{ name?: string; amount: string }> {
+  const items = parseExtractedReceiptItems(receipt.extractedItemsJson);
+  if (items.length > 0) {
+    return items;
+  }
+  if (receipt.extractedTotal) {
+    return [{ amount: receipt.extractedTotal }];
+  }
+  throw new Error("Receipt has no extracted items or total to confirm");
+}
+
+function parseExtractedReceiptItems(value?: string): Array<{ name?: string; amount: string }> {
+  if (!value) {
+    return [];
+  }
+
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed)) {
+    throw new Error("Receipt extracted items are not a JSON array");
+  }
+
+  return parsed.map((item) => {
+    if (!isExtractedReceiptItem(item)) {
+      throw new Error("Receipt extracted item is invalid");
+    }
+    return {
+      name: item.name,
+      amount: item.amount,
+    };
+  });
+}
+
+function isExtractedReceiptItem(value: unknown): value is ExtractedReceiptItem {
+  return typeof value === "object"
+    && value !== null
+    && typeof (value as { amount?: unknown }).amount === "string"
+    && (
+      (value as { name?: unknown }).name === undefined
+      || typeof (value as { name?: unknown }).name === "string"
+    );
+}
+
+function decimalToMinorUnits(amount: string): bigint {
+  if (!/^\d+(?:\.\d{1,2})?$/.test(amount)) {
+    throw new Error(`Invalid receipt amount: ${amount}`);
+  }
+  const [major, rawMinor = ""] = amount.split(".");
+  return BigInt(major) * 100n + BigInt(rawMinor.padEnd(2, "0").slice(0, 2));
 }
 
 function writeOutput(io: CliIo, format: Format, jsonValue: unknown, textValue: string): void {
@@ -817,6 +937,25 @@ function formatReceiptIngestText(result: {
     `Extracted items: ${result.extracted?.items.length ?? 0}`,
     `Warnings: ${result.extracted?.warnings.length ? result.extracted.warnings.join(", ") : "none"}`,
     `Image stored: ${result.receipt.imageStored ? "yes" : "no"}`,
+  ].join("\n");
+}
+
+function formatReceiptConfirmText(result: {
+  receiptId: string;
+  event: string;
+  itemCount: number;
+  expenses: Array<{ id: string; amountMinor: bigint; currency: string; description?: string }>;
+}): string {
+  return [
+    `Confirmed receipt ${result.receiptId}`,
+    `Event: ${result.event}`,
+    `Items added: ${result.itemCount}`,
+    ...result.expenses.map((expense) => [
+      expense.id,
+      expense.amountMinor.toString(),
+      expense.currency,
+      expense.description,
+    ].filter(Boolean).join(" | ")),
   ].join("\n");
 }
 

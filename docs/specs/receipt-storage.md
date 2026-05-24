@@ -15,10 +15,14 @@ Receipt ingestion stores receipt metadata and optionally retains the original im
 - `receipt ingest <image> --event <name>` reads event OCR language preferences and passes them to the OCR provider boundary.
 - `receipt ingest` stores parser draft metadata in `extractedItemsJson` and `extractedTotal` without automatically creating expense items.
 - Parser warnings should surface low-confidence ignored lines and missing totals/items.
+- `receipt confirm <id> --event <name>` converts parser drafts into saved expense items linked by `receiptId`.
+- Confirmation uses extracted item candidates when present; otherwise it falls back to the extracted total as one receipt item.
+- Confirmation requires explicit event context until receipt records persist event linkage.
 
 ## Deferred
 
-- Confirming receipt parser drafts into real expense items.
+- Persisting receipt-to-event linkage during ingestion.
+- Interactive review/edit of low-confidence receipt parser drafts.
 - Full purge command
 
 # Spec Slice: Receipt OCR Language Selection

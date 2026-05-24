@@ -106,6 +106,74 @@ describe("receipt OCR", () => {
     expect(existsSync(join(attachmentsDir, result.receipt.imageRef))).toBe(true);
   });
 
+  it("confirms receipt parser drafts into saved expense items", async () => {
+    const dir = tempDir();
+    const dbPath = join(dir, "expense.sqlite");
+    const imagePath = join(dir, "receipt.jpg");
+    writeFileSync(imagePath, "fake image bytes");
+    process.env.EXPENSE_TRACKER_APPLE_VISION_OCR = mockAppleVisionScript([
+      { text: "2026-05-20 13:11:15", confidence: 1 },
+      { text: "[午市90分鐘]SRF極黑牛餐 248.00", confidence: 0.9 },
+      { text: "服務費 24.80", confidence: 0.9 },
+      { text: "總額 $273.00", confidence: 1 },
+    ]);
+
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "HK Food", "--people", "A,B"], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "ingest",
+      imagePath,
+      "--event",
+      "HK Food",
+      "--format",
+      "json",
+    ], io);
+    const receipt = JSON.parse(output.pop() ?? "").receipt;
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "confirm",
+      receipt.id,
+      "--event",
+      "HK Food",
+      "--paid-by",
+      "A",
+      "--shared-by",
+      "A,B",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    const confirmed = JSON.parse(output.pop() ?? "");
+    expect(confirmed).toEqual(expect.objectContaining({
+      kind: "receipt_confirmed",
+      receiptId: receipt.id,
+      event: "HK Food",
+      itemCount: 1,
+    }));
+    expect(confirmed.expenses[0]).toEqual(expect.objectContaining({
+      receiptId: receipt.id,
+      paidBy: "A",
+      amountMinor: "24800",
+      currency: "HKD",
+      category: "food",
+      description: "[午市90分鐘]SRF極黑牛餐",
+      participants: ["A", "B"],
+    }));
+
+    await runCli(["--db", dbPath, "event", "settle", "HK Food", "--format", "json"], io);
+    expect(JSON.parse(output.pop() ?? "").byCurrency.HKD.transfers).toEqual([
+      { from: "B", to: "A", amountMinor: "12400", currency: "HKD" },
+    ]);
+  });
+
   it("infers event OCR language preferences for receipt ingestion", () => {
     const db = createInMemoryDatabase();
     const event = createEvent(db, {
