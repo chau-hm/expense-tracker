@@ -14,11 +14,19 @@ import type {
   ParticipantId,
   SharedExpense,
 } from "../../domain/settlement.js";
+import {
+  inferOcrLanguagePreferences,
+  normalizeCurrencyList,
+  type OcrLanguagePreference,
+  type OcrLanguageSource,
+} from "../../domain/event-ocr-context.js";
 
 export type CreateEventInput = {
   id: string;
   name: string;
   defaultCurrency: string;
+  supportedCurrencies?: string[];
+  ocrLanguagePreferences?: OcrLanguagePreference[];
   defaultParticipantId: ParticipantId;
   participants: ParticipantId[];
   createdAt: string;
@@ -28,6 +36,9 @@ export type EventRecord = {
   id: string;
   name: string;
   defaultCurrency: string;
+  supportedCurrencies: string[];
+  ocrLanguagePreferences: OcrLanguagePreference[];
+  ocrLanguageSource: OcrLanguageSource;
   status: "active" | "closed";
   participantIds: ParticipantId[];
 };
@@ -56,11 +67,17 @@ export function createEvent(db: ExpenseTrackerDb, input: CreateEventInput): Even
     input.defaultParticipantId,
     ...input.participants,
   ]);
+  const supportedCurrencies = normalizeCurrencyList(input.supportedCurrencies ?? [], input.defaultCurrency);
+  const ocrLanguagePreferences = input.ocrLanguagePreferences ?? inferOcrLanguagePreferences(supportedCurrencies);
+  const ocrLanguageSource: OcrLanguageSource = input.ocrLanguagePreferences ? "manual" : "inferred";
 
   db.insert(events).values({
     id: input.id,
     name: input.name,
     defaultCurrency: input.defaultCurrency,
+    supportedCurrenciesJson: JSON.stringify(supportedCurrencies),
+    ocrLanguagePreferencesJson: JSON.stringify(ocrLanguagePreferences),
+    ocrLanguageSource,
     status: "active",
     createdAt: input.createdAt,
   }).run();
@@ -77,6 +94,9 @@ export function createEvent(db: ExpenseTrackerDb, input: CreateEventInput): Even
     id: input.id,
     name: input.name,
     defaultCurrency: input.defaultCurrency,
+    supportedCurrencies,
+    ocrLanguagePreferences,
+    ocrLanguageSource,
     status: "active",
     participantIds,
   };
@@ -97,6 +117,9 @@ export function findEventByName(db: ExpenseTrackerDb, name: string): EventRecord
     id: event.id,
     name: event.name,
     defaultCurrency: event.defaultCurrency,
+    supportedCurrencies: parseJsonList(event.supportedCurrenciesJson, [event.defaultCurrency]),
+    ocrLanguagePreferences: parseJsonList(event.ocrLanguagePreferencesJson, ["zh", "en"]) as OcrLanguagePreference[],
+    ocrLanguageSource: event.ocrLanguageSource,
     status: event.status,
     participantIds: sortParticipantIds(participantRows.map((row) => row.participantId as ParticipantId)),
   };
@@ -312,6 +335,15 @@ function sortParticipantIds(participantIds: ParticipantId[]): ParticipantId[] {
     }
     return left.localeCompare(right);
   });
+}
+
+function parseJsonList(value: string, fallback: string[]): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function toExpenseBase(row: typeof expenses.$inferSelect) {

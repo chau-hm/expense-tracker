@@ -28,9 +28,31 @@ describe("SQLite repository", () => {
       id: "evt_self",
       name: "Personal",
       defaultCurrency: "HKD",
+      supportedCurrencies: ["HKD"],
+      ocrLanguagePreferences: ["zh", "en"],
+      ocrLanguageSource: "inferred",
       participantIds: [SELF],
       status: "active",
     });
+  });
+
+  it("stores event supported currencies and manual OCR languages", () => {
+    const db = createInMemoryDatabase();
+
+    const event = createEvent(db, {
+      id: "evt_japan",
+      name: "Japan",
+      defaultCurrency: "HKD",
+      supportedCurrencies: ["JPY"],
+      ocrLanguagePreferences: ["jp", "zh"],
+      defaultParticipantId: SELF,
+      participants: [],
+      createdAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    expect(event.supportedCurrencies).toEqual(["HKD", "JPY"]);
+    expect(event.ocrLanguagePreferences).toEqual(["jp", "zh"]);
+    expect(event.ocrLanguageSource).toBe("manual");
   });
 
   it("stores shared expense participants separately and reads domain expenses back", () => {

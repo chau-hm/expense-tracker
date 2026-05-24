@@ -26,12 +26,18 @@ function migrateIfNeeded(db: ExpenseTrackerDb): void {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       default_currency TEXT NOT NULL DEFAULT 'HKD',
+      supported_currencies_json TEXT NOT NULL DEFAULT '["HKD"]',
+      ocr_language_preferences_json TEXT NOT NULL DEFAULT '["zh","en"]',
+      ocr_language_source TEXT NOT NULL DEFAULT 'inferred',
       status TEXT NOT NULL,
       created_at TEXT NOT NULL,
       closed_at TEXT
     )
   `);
   addColumnIfMissing(db, "events", "default_currency TEXT NOT NULL DEFAULT 'HKD'");
+  addColumnIfMissing(db, "events", "supported_currencies_json TEXT NOT NULL DEFAULT '[\"HKD\"]'");
+  addColumnIfMissing(db, "events", "ocr_language_preferences_json TEXT NOT NULL DEFAULT '[\"zh\",\"en\"]'");
+  addColumnIfMissing(db, "events", "ocr_language_source TEXT NOT NULL DEFAULT 'inferred'");
   db.run(`
     CREATE TABLE IF NOT EXISTS participants (
       id TEXT PRIMARY KEY,
@@ -97,6 +103,9 @@ function migrate(db: ExpenseTrackerDb): void {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       default_currency TEXT NOT NULL DEFAULT 'HKD',
+      supported_currencies_json TEXT NOT NULL DEFAULT '["HKD"]',
+      ocr_language_preferences_json TEXT NOT NULL DEFAULT '["zh","en"]',
+      ocr_language_source TEXT NOT NULL DEFAULT 'inferred',
       status TEXT NOT NULL,
       created_at TEXT NOT NULL,
       closed_at TEXT

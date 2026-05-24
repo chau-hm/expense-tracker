@@ -2,16 +2,24 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { Command, CommanderError } from "commander";
+import { AppleVisionOcrProvider } from "../adapters/ocr/apple-vision.js";
 import { createDatabase } from "../adapters/sqlite/database.js";
 import {
   createEvent,
+  deleteReceiptImage,
   findEventByName,
+  getReceipt,
   insertExpense,
+  insertReceipt,
   type InsertExpenseInput,
   listExpenses,
   listEventExpenses,
   updateExpense,
 } from "../adapters/sqlite/repository.js";
+import {
+  deleteStoredReceiptImage,
+  storeReceiptImage,
+} from "../adapters/storage/attachments.js";
 import {
   deleteItem,
   editItem,
@@ -38,6 +46,12 @@ import {
   type ChatItemMutationIntent,
   type ChatParseResult,
 } from "../domain/chat-intake.js";
+import { normalizeOcrLanguagePreferences } from "../domain/event-ocr-context.js";
+import {
+  averageReceiptOcrConfidence,
+  extractReceiptDraft,
+  formatReceiptOcrText,
+} from "../domain/receipt-ocr.js";
 
 export type CliIo = {
   stdout: (message: string) => void;
@@ -48,6 +62,7 @@ type Format = "text" | "json";
 const DEFAULT_PARTICIPANT_ID = "self" as ParticipantId;
 const DEFAULT_CURRENCY = "HKD";
 const DEFAULT_CATEGORY = "general";
+const DEFAULT_ATTACHMENTS_DIR = join(homedir(), ".expense-tracker", "attachments");
 type ExpenseTypeOption = "shared" | "personal" | "fronted-personal" | "fronted_personal";
 
 export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<number> {
@@ -86,14 +101,20 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .argument("<name>")
     .option("--people <people>", "Comma-separated participant IDs")
     .option("--currency <currency>", "Default event currency", DEFAULT_CURRENCY)
+    .option("--currencies <currencies>", "Comma-separated supported currencies for the event")
+    .option("--ocr-languages <languages>", "Comma-separated OCR language preferences: zh,en,jp")
     .option("--format <format>", "Output format: text or json", "text")
-    .action((name: string, options: { people?: string; currency: string; format: Format }) => {
+    .action((name: string, options: { people?: string; currency: string; currencies?: string; ocrLanguages?: string; format: Format }) => {
       const db = openDb(program);
       const now = new Date().toISOString();
       const record = createEvent(db, {
         id: createId("evt", name),
         name,
-        defaultCurrency: options.currency,
+        defaultCurrency: options.currency.toUpperCase(),
+        supportedCurrencies: parseCommaList(options.currencies),
+        ocrLanguagePreferences: options.ocrLanguages
+          ? normalizeOcrLanguagePreferences(parseCommaList(options.ocrLanguages))
+          : undefined,
         defaultParticipantId: DEFAULT_PARTICIPANT_ID,
         participants: parsePeople(options.people),
         createdAt: now,
@@ -534,6 +555,84 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       writeOutput(io, options.format, stringifyBigInts(result.item), `Restored item ${id}`);
     });
 
+  const receipt = program.command("receipt");
+
+  receipt
+    .command("ingest")
+    .argument("<image-path>")
+    .requiredOption("--event <name>", "Event context for OCR language preferences")
+    .option("--attachments-dir <path>", "Local attachments directory", DEFAULT_ATTACHMENTS_DIR)
+    .option("--no-store-image", "Do not retain a local copy of the receipt image")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action(async (imagePath: string, options: {
+      event: string;
+      attachmentsDir: string;
+      storeImage: boolean;
+      format: Format;
+    }) => {
+      const db = openDb(program);
+      const eventRecord = findEventByName(db, options.event);
+      if (!eventRecord) {
+        throw new Error(`Event not found: ${options.event}`);
+      }
+
+      const now = new Date().toISOString();
+      const receiptId = createId("rcp", `${options.event}-${imagePath}-${now}`);
+      const stored = storeReceiptImage({
+        receiptId,
+        sourcePath: imagePath,
+        attachmentsDir: options.attachmentsDir,
+        storeImage: options.storeImage,
+      });
+      const ocr = await new AppleVisionOcrProvider().recognize({
+        imagePath,
+        languagePreferences: eventRecord.ocrLanguagePreferences,
+      });
+      const extracted = extractReceiptDraft({
+        ocr,
+        currencies: eventRecord.supportedCurrencies,
+      });
+      const record = {
+        id: receiptId,
+        ...stored,
+        ocrText: formatReceiptOcrText(ocr),
+        extractedItemsJson: JSON.stringify(extracted.items),
+        extractedTotal: extracted.total,
+        provider: ocr.provider,
+        confidence: averageReceiptOcrConfidence(ocr),
+        retainedRawOcr: true,
+        createdAt: now,
+      };
+      insertReceipt(db, record);
+      const result = {
+        kind: "receipt_ingested" as const,
+        receipt: record,
+        event: eventRecord.name,
+        ocrLanguages: eventRecord.ocrLanguagePreferences,
+        lineCount: ocr.lines.length,
+        extracted,
+      };
+      writeOutput(io, options.format, stringifyBigInts(result), formatReceiptIngestText(result));
+    });
+
+  receipt
+    .command("image")
+    .command("delete")
+    .argument("<id>")
+    .option("--attachments-dir <path>", "Local attachments directory", DEFAULT_ATTACHMENTS_DIR)
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((id: string, options: { attachmentsDir: string; format: Format }) => {
+      const db = openDb(program);
+      const existing = getReceipt(db, id);
+      if (!existing) {
+        throw new Error(`Receipt not found: ${id}`);
+      }
+      deleteStoredReceiptImage({ attachmentsDir: options.attachmentsDir, imageRef: existing.imageRef });
+      const receiptRecord = deleteReceiptImage(db, id, new Date().toISOString());
+      const result = { kind: "receipt_image_deleted" as const, receipt: receiptRecord };
+      writeOutput(io, options.format, stringifyBigInts(result), `Deleted receipt image ${id}`);
+    });
+
   return program;
 }
 
@@ -553,14 +652,18 @@ function defaultDbPath(): string {
 }
 
 function parsePeople(value?: string): ParticipantId[] {
+  return parseCommaList(value)
+    .map((person) => person as ParticipantId);
+}
+
+function parseCommaList(value?: string): string[] {
   if (!value) {
     return [];
   }
   return value
     .split(",")
-    .map((person) => person.trim())
-    .filter(Boolean)
-    .map((person) => person as ParticipantId);
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function normalizeExpenseType(value: ExpenseTypeOption): "shared" | "personal" | "fronted_personal" {
@@ -694,6 +797,26 @@ function formatChatParseText(result: ChatParseResult): string {
     `Shared by: ${draft.sharedBy.join(", ")}`,
     `Description: ${draft.description}`,
     `CLI: ${draft.commandArgs.map(quoteArg).join(" ")}`,
+  ].join("\n");
+}
+
+function formatReceiptIngestText(result: {
+  receipt: { id: string; provider?: string; confidence?: number; imageStored: boolean };
+  event: string;
+  ocrLanguages: string[];
+  lineCount: number;
+  extracted?: { currency: string; total?: string; items: unknown[]; warnings: string[] };
+}): string {
+  return [
+    `Ingested receipt ${result.receipt.id}`,
+    `Event: ${result.event}`,
+    `OCR: ${result.receipt.provider ?? "unknown"} (${result.ocrLanguages.join(", ")})`,
+    `Lines: ${result.lineCount}`,
+    `Average confidence: ${result.receipt.confidence ?? "n/a"}`,
+    `Extracted total: ${result.extracted?.total ? `${result.extracted.total} ${result.extracted.currency}` : "n/a"}`,
+    `Extracted items: ${result.extracted?.items.length ?? 0}`,
+    `Warnings: ${result.extracted?.warnings.length ? result.extracted.warnings.join(", ") : "none"}`,
+    `Image stored: ${result.receipt.imageStored ? "yes" : "no"}`,
   ].join("\n");
 }
 

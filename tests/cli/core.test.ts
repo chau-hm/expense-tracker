@@ -34,6 +34,9 @@ describe("core CLI commands", () => {
       id: expect.stringMatching(/^evt_/),
       name: "Japan Trip",
       defaultCurrency: "HKD",
+      supportedCurrencies: ["HKD"],
+      ocrLanguagePreferences: ["zh", "en"],
+      ocrLanguageSource: "inferred",
       status: "active",
       participantIds: ["self", "A", "B"],
     });
@@ -73,6 +76,35 @@ describe("core CLI commands", () => {
     expect(settlement.byCurrency.HKD.transfers).toEqual([
       { from: "B", to: "A", amountMinor: "120000", currency: "HKD" },
     ]);
+  });
+
+  it("creates events with supported currencies and OCR language preferences", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "event",
+      "create",
+      "Japan Trip",
+      "--currency",
+      "HKD",
+      "--currencies",
+      "JPY,HKD",
+      "--ocr-languages",
+      "jp,zh",
+      "--format",
+      "json",
+    ], { stdout: output.push.bind(output), stderr: () => undefined })).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
+      name: "Japan Trip",
+      defaultCurrency: "HKD",
+      supportedCurrencies: ["HKD", "JPY"],
+      ocrLanguagePreferences: ["jp", "zh"],
+      ocrLanguageSource: "manual",
+    });
   });
 
   it("defaults event currency and personal expense fields for fast chat entry", async () => {

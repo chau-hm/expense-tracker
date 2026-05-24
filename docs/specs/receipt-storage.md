@@ -2,21 +2,23 @@
 
 ## Behavior
 
-Receipt ingestion stores receipt metadata and optionally retains the original image locally. This slice does not implement OCR; it prepares the persistence/storage path.
+Receipt ingestion stores receipt metadata and optionally retains the original image locally. The OCR slice stores raw OCR text and provider metadata, then creates a conservative receipt extraction draft for review.
 
 ## Acceptance Criteria
 
 - Receipt image files are copied into a local attachments directory by default.
-- Receipt records store `imageRef`, `imageSha256`, `imageStored`, and OCR placeholder metadata.
+- Receipt records store `imageRef`, `imageSha256`, `imageStored`, raw `ocrText`, `provider`, and confidence metadata.
 - `--no-store-image` stores metadata without retaining the original image.
 - SQLite stores metadata only, not image binary content.
 - `receipt image delete <id>` removes the retained local image and keeps the receipt metadata.
 - Receipt image deletion does not delete expense items.
+- `receipt ingest <image> --event <name>` reads event OCR language preferences and passes them to the OCR provider boundary.
+- `receipt ingest` stores parser draft metadata in `extractedItemsJson` and `extractedTotal` without automatically creating expense items.
+- Parser warnings should surface low-confidence ignored lines and missing totals/items.
 
 ## Deferred
 
-- Actual OCR provider calls
-- Receipt-to-expense draft parsing
+- Confirming receipt parser drafts into real expense items.
 - Full purge command
 
 # Spec Slice: Receipt OCR Language Selection
@@ -32,6 +34,7 @@ Receipt OCR should use event-level OCR language preferences. This keeps Apple Vi
 - The OCR layer does not infer languages from settlement state.
 - Apple Vision provider-specific language IDs are mapped inside the provider adapter.
 - Raw OCR output records the provider and language preferences used for the extraction.
+- Extraction is conservative: raw OCR text is retained; parser output is a draft with confidence-aware item/total candidates, not saved expenses.
 
 ## Fallback
 

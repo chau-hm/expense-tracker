@@ -59,6 +59,26 @@ describe("OpenClaw wrapper", () => {
     });
   });
 
+  it("forwards receipt commands instead of treating them as natural language", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const errors: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: errors.push.bind(errors) };
+
+    await expect(runOpenClawCommand([
+      "--db",
+      dbPath,
+      "expense",
+      "receipt",
+      "image",
+      "delete",
+      "missing",
+    ], io)).resolves.toBe(1);
+
+    expect(output.join("\n")).not.toContain("Needs clarification");
+    expect(errors).toEqual(["Receipt not found: missing"]);
+  });
+
   it("shows help for empty input", async () => {
     const output: string[] = [];
     const errors: string[] = [];

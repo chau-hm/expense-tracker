@@ -6,7 +6,7 @@ import {
 import { runCli, type CliIo } from "./program.js";
 
 const STRIPPED_PREFIXES = new Set(["/expense", "expense"]);
-const TOP_LEVEL_COMMANDS = new Set(["chat", "event", "expense", "item"]);
+const TOP_LEVEL_COMMANDS = new Set(["chat", "event", "expense", "item", "receipt"]);
 
 export async function runOpenClawCommand(argv: string[], io?: CliIo): Promise<number> {
   return runCli(normalizeOpenClawArgv(argv), io);

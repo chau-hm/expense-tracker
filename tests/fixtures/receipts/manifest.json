@@ -1,0 +1,59 @@
+[
+  {
+    "file": "kiss-tea-2026-05-12.jpg",
+    "sha256": "263acf3bb1534814459998d8e6d76f9d20a4d7b0de683ab6170a380620b9305c",
+    "merchant": "玖子茶",
+    "date": "2026-05-12T20:18:40+08:00",
+    "currency": "HKD",
+    "total": "91.00",
+    "items": [
+      { "name": "九層塔胡椒茄子牛肉饅", "amount": "88.00" },
+      { "name": "爽爆檸檬茶-凍", "amount": "3.00" }
+    ],
+    "notes": "Apple Vision baseline misses most Chinese item text; numeric totals are clear."
+  },
+  {
+    "file": "hoi-yau-2026-05-18-wide.jpg",
+    "sha256": "9730dd950ccd72ef46cbb3ff23d703cacbf2b65a55512fc294abfa18cb91627b",
+    "merchant": "海悠",
+    "date": "2026-05-18T19:22:35+08:00",
+    "currency": "HKD",
+    "total": "186.00",
+    "items": [
+      { "name": "川味麻婆豆腐飯", "amount": "45.00" },
+      { "name": "椒子鮑魚燉雞湯", "amount": "68.00" },
+      { "name": "椒子鮑魚燉雞湯", "amount": "68.00" },
+      { "name": "加條可口可樂", "amount": "5.00" }
+    ],
+    "notes": "Same receipt as close image; use for perspective/lighting regression."
+  },
+  {
+    "file": "hoi-yau-2026-05-18-close.jpg",
+    "sha256": "d71a5797fecae8e61563006d99825914a681143a2462274bb7fba1812f1a4b8e",
+    "merchant": "海悠",
+    "date": "2026-05-18T19:22:35+08:00",
+    "currency": "HKD",
+    "total": "186.00",
+    "items": [
+      { "name": "川味麻婆豆腐飯", "amount": "45.00" },
+      { "name": "椒子鮑魚燉雞湯", "amount": "68.00" },
+      { "name": "椒子鮑魚燉雞湯", "amount": "68.00" },
+      { "name": "加條可口可樂", "amount": "5.00" }
+    ],
+    "notes": "Same receipt as wide image; Apple Vision still struggles with Chinese item names."
+  },
+  {
+    "file": "anping-grill-2026-05-20.jpg",
+    "sha256": "f0734517ace8ee7f357c87736f806dbebc5d0a11fb74e81234cb4968d923e76e",
+    "merchant": "安平燒肉",
+    "date": "2026-05-20T13:11:15+08:00",
+    "currency": "HKD",
+    "subtotal": "248.00",
+    "serviceCharge": "24.80",
+    "total": "273.00",
+    "items": [
+      { "name": "[午市90分鐘]SRF極黑牛餐", "amount": "248.00" }
+    ],
+    "notes": "Good numeric fixture with service charge and rounded total."
+  }
+]
