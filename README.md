@@ -12,13 +12,13 @@ Agent-native expense tracker，主介面預設係聊天 / slash command，而唔
 - chat intake Phase 2：自然語言 draft、correction、item list/search、item edit/delete/restore、event summary/settlement
 - SQLite persistence
 - 本地 receipt image storage skeleton
+- receipt OCR ingest、draft review、confirm 入帳
 - OpenClaw wrapper：`expense-openclaw`
 - workspace skill：`expense`
 
 未實作：
 
-- receipt OCR
-- receipt OCR 結果轉成 expense draft
+- fully interactive receipt review UI
 - Telegram native command menu 重啟後驗證
 - standalone web UI
 
@@ -349,4 +349,4 @@ npm run build
 
 ## 注意
 
-receipt OCR 未接好。收到 receipt image 時，目前只能先儲存 metadata / image skeleton，或者請使用者手動輸入 item details。
+receipt OCR 使用本機 Apple Vision adapter。收到 Telegram/OpenClaw receipt image 時，可先把 `media://inbound/<file>.jpg` 交給 workspace skill helper ingest，再用 `receipt draft` / `receipt confirm` 做確認入帳。

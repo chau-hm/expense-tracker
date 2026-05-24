@@ -376,6 +376,42 @@ describe("receipt OCR", () => {
       warnings: ["low_confidence_lines_ignored"],
     });
   });
+
+  it("ignores receipt metadata numbers when OCR misses Chinese labels", () => {
+    const draft = extractReceiptDraft({
+      currencies: ["HKD"],
+      ocr: {
+        provider: "apple-vision",
+        languages: ["zh-Hant", "en-US"],
+        lines: [
+          { text: "77* (*E)", confidence: 0.7 },
+          { text: "#tE: 2806 1688", confidence: 1 },
+          { text: ":11", confidence: 1 },
+          { text: "AR#97: 4289", confidence: 1 },
+          { text: "AEERS: 12/05/2026 20:18:40", confidence: 1 },
+          { text: "88.00", confidence: 1 },
+          { text: "3.00", confidence: 1 },
+          { text: "91.00", confidence: 1 },
+          { text: "91.00", confidence: 1 },
+          { text: "91.00", confidence: 1 },
+          { text: "10.00", confidence: 1 },
+          { text: "Cash", confidence: 1 },
+          { text: "101.00", confidence: 1 },
+          { text: "#5: 4289", confidence: 1 },
+          { text: "05 4286: A11861.504-0-01", confidence: 1 },
+        ],
+      },
+    });
+
+    expect(draft).toEqual(expect.objectContaining({
+      incurredAt: "2026-05-12T20:18:40+08:00",
+      total: "91.00",
+      items: [
+        expect.objectContaining({ amount: "88.00" }),
+        expect.objectContaining({ amount: "3.00" }),
+      ],
+    }));
+  });
 });
 
 function tempDir(): string {
