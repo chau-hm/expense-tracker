@@ -13,6 +13,7 @@ Agent-native expense tracker，主介面預設係聊天 / slash command，而唔
 - SQLite persistence
 - 本地 receipt image storage skeleton
 - receipt OCR ingest、draft review、confirm 入帳
+- Telegram/OpenClaw receipt image helper：`media://inbound/...` -> ingest -> draft
 - OpenClaw wrapper：`expense-openclaw`
 - workspace skill：`expense`
 
@@ -286,6 +287,46 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
 
 summary 會顯示 event status、participants、active item count、currency totals、category totals、settlement。settlement 會按 currency group transfers；無數要夾會顯示 `No settlement needed`。
 
+#### 6. Receipt OCR / draft / confirm
+
+收到 receipt image 後，agent 可以用 workspace helper 由 OpenClaw media ref 直接 ingest：
+
+```bash
+/Users/openclaw/.openclaw/workspace/skills/expense/scripts/ingest-receipt-image.sh \
+  --event "Japan Trip" \
+  media://inbound/<file>.jpg
+```
+
+helper 會：
+
+- resolve `media://inbound/<file>.jpg` 到 `/Users/openclaw/.openclaw/media/inbound/<file>.jpg`
+- 呼叫 `expense-openclaw receipt ingest`
+- 儲存 receipt image metadata / raw OCR / parser draft
+- 即刻輸出 `receipt draft`
+
+手動 CLI 等價流程：
+
+```bash
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense receipt ingest /path/to/receipt.jpg --event "Japan Trip"
+
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense receipt draft rcp_id
+
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense receipt confirm rcp_id --items "ramen=90.00;tea=12.00" --paid-by A --shared-by A,B,C
+
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense receipt confirm rcp_id --use-total --description "dinner receipt" --paid-by A --shared-by A,B,C
+```
+
+安全規則：
+
+- `receipt ingest` 必須指定 event，因為 OCR language preferences 由 event 決定。
+- `receipt confirm` 對新 receipt 會使用 stored `eventId`，不需要再傳 `--event`。
+- 如果手動傳入不同 event，CLI 會拒絕，避免 receipt 入錯 event。
+- raw OCR metadata 不會因 confirm/edit item 而被覆寫；已入帳 item 可用一般 `item edit/delete/restore` 管理。
+
 如果缺少會影響入帳正確性的資料，agent 應該先追問，不應該亂入帳。通常需要追問嘅情況：
 
 - 未能確定 event，而且最近語境亦唔清楚
@@ -293,6 +334,7 @@ summary 會顯示 event status、participants、active item count、currency tot
 - 付款人或分帳對象唔清楚，而且唔應該套用 `self`
 - category 無法合理判斷，而又不適合用 `general`
 - edit/delete/restore target 有多個 candidates
+- receipt draft 有低信心 warning、item 名/金額明顯錯、或者需要決定用 item breakdown 定 total 入帳
 
 Telegram native slash command menu 需要 gateway startup 時註冊。restart gateway 前先跑：
 
