@@ -173,6 +173,121 @@ describe("receipt OCR", () => {
     ]);
   });
 
+  it("shows receipt drafts and confirms edited item overrides", async () => {
+    const dir = tempDir();
+    const dbPath = join(dir, "expense.sqlite");
+    const imagePath = join(dir, "receipt.jpg");
+    writeFileSync(imagePath, "fake image bytes");
+    process.env.EXPENSE_TRACKER_APPLE_VISION_OCR = mockAppleVisionScript([
+      { text: "牛餐 248.00", confidence: 0.9 },
+      { text: "檸茶 3.00", confidence: 0.9 },
+      { text: "總額 $251.00", confidence: 1 },
+    ]);
+
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "HK Food"], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "ingest",
+      imagePath,
+      "--event",
+      "HK Food",
+      "--format",
+      "json",
+    ], io);
+    const receipt = JSON.parse(output.pop() ?? "").receipt;
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "draft",
+      receipt.id,
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+    expect(JSON.parse(output.pop() ?? "")).toEqual(expect.objectContaining({
+      kind: "receipt_draft",
+      receiptId: receipt.id,
+      total: "251.00",
+      items: [
+        expect.objectContaining({ name: "牛餐", amount: "248.00" }),
+        expect.objectContaining({ name: "檸茶", amount: "3.00" }),
+      ],
+    }));
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "confirm",
+      receipt.id,
+      "--items",
+      "SRF beef lunch=248.00;lemon tea=3.00",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    const confirmed = JSON.parse(output.pop() ?? "");
+    expect(confirmed.itemCount).toBe(2);
+    expect(confirmed.expenses).toEqual([
+      expect.objectContaining({ description: "SRF beef lunch", amountMinor: "24800" }),
+      expect.objectContaining({ description: "lemon tea", amountMinor: "300" }),
+    ]);
+  });
+
+  it("can confirm the extracted total as a single edited item", async () => {
+    const dir = tempDir();
+    const dbPath = join(dir, "expense.sqlite");
+    const imagePath = join(dir, "receipt.jpg");
+    writeFileSync(imagePath, "fake image bytes");
+    process.env.EXPENSE_TRACKER_APPLE_VISION_OCR = mockAppleVisionScript([
+      { text: "總額 $91.00", confidence: 1 },
+    ]);
+
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "HK Food"], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "ingest",
+      imagePath,
+      "--event",
+      "HK Food",
+      "--format",
+      "json",
+    ], io);
+    const receipt = JSON.parse(output.pop() ?? "").receipt;
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "confirm",
+      receipt.id,
+      "--use-total",
+      "--description",
+      "tea receipt",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    const confirmed = JSON.parse(output.pop() ?? "");
+    expect(confirmed.expenses).toEqual([
+      expect.objectContaining({
+        description: "tea receipt",
+        amountMinor: "9100",
+      }),
+    ]);
+  });
+
   it("rejects confirmation into a different event than the stored receipt event", async () => {
     const dir = tempDir();
     const dbPath = join(dir, "expense.sqlite");

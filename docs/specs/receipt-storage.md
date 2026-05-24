@@ -20,6 +20,9 @@ Receipt ingestion stores receipt metadata and optionally retains the original im
 - Confirmation uses extracted item candidates when present; otherwise it falls back to the extracted total as one receipt item.
 - Confirmation rejects an explicit `--event` if it conflicts with the stored receipt event.
 - Confirmation still accepts explicit `--event` only as a fallback for older receipts without event linkage.
+- `receipt draft <id>` returns the stored receipt parser draft before confirmation.
+- `receipt confirm --items "name=amount;name=amount"` confirms edited item drafts without mutating the stored raw OCR metadata.
+- `receipt confirm --use-total --description <text>` confirms the extracted total as one edited item.
 
 ## Deferred
 

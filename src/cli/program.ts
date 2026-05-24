@@ -619,6 +619,28 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     });
 
   receipt
+    .command("draft")
+    .argument("<id>")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((id: string, options: { format: Format }) => {
+      const db = openDb(program);
+      const receiptRecord = getReceipt(db, id);
+      if (!receiptRecord) {
+        throw new Error(`Receipt not found: ${id}`);
+      }
+      const result = {
+        kind: "receipt_draft" as const,
+        receiptId: id,
+        eventId: receiptRecord.eventId,
+        total: receiptRecord.extractedTotal,
+        items: parseExtractedReceiptItems(receiptRecord.extractedItemsJson),
+        ocrText: receiptRecord.ocrText,
+        confidence: receiptRecord.confidence,
+      };
+      writeOutput(io, options.format, stringifyBigInts(result), formatReceiptDraftText(result));
+    });
+
+  receipt
     .command("confirm")
     .argument("<id>")
     .option("--event <name>", "Event to save confirmed receipt items into")
@@ -629,6 +651,8 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .option("--beneficiary <participant>", "Beneficiary participant ID for fronted personal expenses")
     .option("--category <category>", "Expense category", "food")
     .option("--description <description>", "Override description for single-total fallback")
+    .option("--items <items>", "Override items as semicolon-separated name=amount entries")
+    .option("--use-total", "Confirm the extracted total as one item instead of extracted item candidates")
     .option("--format <format>", "Output format: text or json", "text")
     .action((id: string, options: {
       event?: string;
@@ -639,6 +663,8 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       beneficiary?: string;
       category: string;
       description?: string;
+      items?: string;
+      useTotal?: boolean;
       format: Format;
     }) => {
       const db = openDb(program);
@@ -660,12 +686,16 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       }
 
       const now = new Date().toISOString();
-      const confirmedItems = receiptDraftItems(receiptRecord);
+      const confirmedItems = receiptDraftItems(receiptRecord, {
+        items: options.items,
+        useTotal: options.useTotal,
+        description: options.description,
+      });
       const expenseType = normalizeExpenseType(options.type);
       const expenses = confirmedItems.map((item, index) => {
         const description = item.name ?? options.description ?? `Receipt ${id}`;
         const base = {
-          id: createId("exp", `${eventRecord.name}-${id}-${index}-${description}-${now}`),
+          id: createId("exp", `${eventRecord.name}-${index}-${description}-${id}-${now}`),
           eventId: eventRecord.id,
           receiptId: id,
           status: "active" as const,
@@ -796,7 +826,20 @@ function createId(prefix: string, seed: string): string {
   return `${prefix}_${normalized || Date.now().toString(36)}`;
 }
 
-function receiptDraftItems(receipt: { extractedItemsJson?: string; extractedTotal?: string }): Array<{ name?: string; amount: string }> {
+function receiptDraftItems(
+  receipt: { extractedItemsJson?: string; extractedTotal?: string },
+  options: { items?: string; useTotal?: boolean; description?: string } = {},
+): Array<{ name?: string; amount: string }> {
+  if (options.items) {
+    return parseReceiptItemOverride(options.items);
+  }
+  if (options.useTotal) {
+    if (!receipt.extractedTotal) {
+      throw new Error("Receipt has no extracted total to confirm");
+    }
+    return [{ name: options.description, amount: receipt.extractedTotal }];
+  }
+
   const items = parseExtractedReceiptItems(receipt.extractedItemsJson);
   if (items.length > 0) {
     return items;
@@ -805,6 +848,28 @@ function receiptDraftItems(receipt: { extractedItemsJson?: string; extractedTota
     return [{ amount: receipt.extractedTotal }];
   }
   throw new Error("Receipt has no extracted items or total to confirm");
+}
+
+function parseReceiptItemOverride(value: string): Array<{ name?: string; amount: string }> {
+  const items = value
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const [nameOrAmount, maybeAmount] = item.split("=").map((part) => part.trim());
+      if (!maybeAmount) {
+        return { amount: nameOrAmount };
+      }
+      return { name: nameOrAmount || undefined, amount: maybeAmount };
+    });
+
+  if (items.length === 0) {
+    throw new Error("Receipt item override is empty");
+  }
+  for (const item of items) {
+    decimalToMinorUnits(item.amount);
+  }
+  return items;
 }
 
 function parseExtractedReceiptItems(value?: string): Array<{ name?: string; amount: string }> {
@@ -947,6 +1012,23 @@ function formatReceiptIngestText(result: {
     `Extracted items: ${result.extracted?.items.length ?? 0}`,
     `Warnings: ${result.extracted?.warnings.length ? result.extracted.warnings.join(", ") : "none"}`,
     `Image stored: ${result.receipt.imageStored ? "yes" : "no"}`,
+  ].join("\n");
+}
+
+function formatReceiptDraftText(result: {
+  receiptId: string;
+  eventId?: string;
+  total?: string;
+  items: Array<{ name?: string; amount: string }>;
+  confidence?: number;
+}): string {
+  return [
+    `Receipt draft ${result.receiptId}`,
+    `Event ID: ${result.eventId ?? "n/a"}`,
+    `Total: ${result.total ?? "n/a"}`,
+    `Average confidence: ${result.confidence ?? "n/a"}`,
+    `Items: ${result.items.length}`,
+    ...result.items.map((item, index) => `${index + 1}. ${item.name ?? "item"} | ${item.amount}`),
   ].join("\n");
 }
 
