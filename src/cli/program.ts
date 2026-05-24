@@ -8,6 +8,7 @@ import {
   createEvent,
   deleteReceiptImage,
   findEventByName,
+  getEventById,
   getReceipt,
   insertExpense,
   insertReceipt,
@@ -595,6 +596,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       });
       const record = {
         id: receiptId,
+        eventId: eventRecord.id,
         ...stored,
         ocrText: formatReceiptOcrText(ocr),
         extractedItemsJson: JSON.stringify(extracted.items),
@@ -619,7 +621,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
   receipt
     .command("confirm")
     .argument("<id>")
-    .requiredOption("--event <name>", "Event to save confirmed receipt items into")
+    .option("--event <name>", "Event to save confirmed receipt items into")
     .option("--type <type>", "Expense type: shared, personal, fronted-personal", "shared")
     .option("--paid-by <participant>", "Payer participant ID", DEFAULT_PARTICIPANT_ID)
     .option("--shared-by <people>", "Comma-separated participants", DEFAULT_PARTICIPANT_ID)
@@ -629,7 +631,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .option("--description <description>", "Override description for single-total fallback")
     .option("--format <format>", "Output format: text or json", "text")
     .action((id: string, options: {
-      event: string;
+      event?: string;
       type: ExpenseTypeOption;
       paidBy: string;
       sharedBy: string;
@@ -644,9 +646,17 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       if (!receiptRecord) {
         throw new Error(`Receipt not found: ${id}`);
       }
-      const eventRecord = findEventByName(db, options.event);
-      if (!eventRecord) {
+      const eventRecord = options.event
+        ? findEventByName(db, options.event)
+        : receiptRecord.eventId ? getEventById(db, receiptRecord.eventId) : undefined;
+      if (!eventRecord && options.event) {
         throw new Error(`Event not found: ${options.event}`);
+      }
+      if (!eventRecord) {
+        throw new Error("Missing required option '--event <name>' for receipt without stored event");
+      }
+      if (receiptRecord.eventId && options.event && receiptRecord.eventId !== eventRecord.id) {
+        throw new Error(`Receipt ${id} belongs to a different event`);
       }
 
       const now = new Date().toISOString();
@@ -655,7 +665,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       const expenses = confirmedItems.map((item, index) => {
         const description = item.name ?? options.description ?? `Receipt ${id}`;
         const base = {
-          id: createId("exp", `${options.event}-${id}-${index}-${description}-${now}`),
+          id: createId("exp", `${eventRecord.name}-${id}-${index}-${description}-${now}`),
           eventId: eventRecord.id,
           receiptId: id,
           status: "active" as const,

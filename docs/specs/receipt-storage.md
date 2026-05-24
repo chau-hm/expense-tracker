@@ -8,6 +8,7 @@ Receipt ingestion stores receipt metadata and optionally retains the original im
 
 - Receipt image files are copied into a local attachments directory by default.
 - Receipt records store `imageRef`, `imageSha256`, `imageStored`, raw `ocrText`, `provider`, and confidence metadata.
+- Receipt records store the source `eventId` from ingestion.
 - `--no-store-image` stores metadata without retaining the original image.
 - SQLite stores metadata only, not image binary content.
 - `receipt image delete <id>` removes the retained local image and keeps the receipt metadata.
@@ -15,13 +16,13 @@ Receipt ingestion stores receipt metadata and optionally retains the original im
 - `receipt ingest <image> --event <name>` reads event OCR language preferences and passes them to the OCR provider boundary.
 - `receipt ingest` stores parser draft metadata in `extractedItemsJson` and `extractedTotal` without automatically creating expense items.
 - Parser warnings should surface low-confidence ignored lines and missing totals/items.
-- `receipt confirm <id> --event <name>` converts parser drafts into saved expense items linked by `receiptId`.
+- `receipt confirm <id>` converts parser drafts into saved expense items linked by `receiptId` and the stored receipt event.
 - Confirmation uses extracted item candidates when present; otherwise it falls back to the extracted total as one receipt item.
-- Confirmation requires explicit event context until receipt records persist event linkage.
+- Confirmation rejects an explicit `--event` if it conflicts with the stored receipt event.
+- Confirmation still accepts explicit `--event` only as a fallback for older receipts without event linkage.
 
 ## Deferred
 
-- Persisting receipt-to-event linkage during ingestion.
 - Interactive review/edit of low-confidence receipt parser drafts.
 - Full purge command
 

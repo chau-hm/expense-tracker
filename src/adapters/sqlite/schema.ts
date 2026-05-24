@@ -30,6 +30,7 @@ export const eventParticipants = sqliteTable("event_participants", {
 
 export const receipts = sqliteTable("receipts", {
   id: text("id").primaryKey(),
+  eventId: text("event_id").references(() => events.id),
   imageRef: text("image_ref"),
   imageSha256: text("image_sha256"),
   imageStored: integer("image_stored", { mode: "boolean" }).notNull(),

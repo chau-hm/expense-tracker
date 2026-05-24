@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createInMemoryDatabase } from "../../src/adapters/sqlite/database.js";
 import {
   createEvent,
+  getReceipt,
   insertExpense,
+  insertReceipt,
   listEventExpenses,
 } from "../../src/adapters/sqlite/repository.js";
 import type { ParticipantId } from "../../src/domain/settlement.js";
@@ -53,6 +55,33 @@ describe("SQLite repository", () => {
     expect(event.supportedCurrencies).toEqual(["HKD", "JPY"]);
     expect(event.ocrLanguagePreferences).toEqual(["jp", "zh"]);
     expect(event.ocrLanguageSource).toBe("manual");
+  });
+
+  it("stores receipt event linkage", () => {
+    const db = createInMemoryDatabase();
+    createEvent(db, {
+      id: "evt_food",
+      name: "Food",
+      defaultCurrency: "HKD",
+      defaultParticipantId: SELF,
+      participants: [],
+      createdAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    insertReceipt(db, {
+      id: "rcp_food",
+      eventId: "evt_food",
+      imageStored: false,
+      extractedTotal: "91.00",
+      retainedRawOcr: true,
+      createdAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    expect(getReceipt(db, "rcp_food")).toEqual(expect.objectContaining({
+      id: "rcp_food",
+      eventId: "evt_food",
+      extractedTotal: "91.00",
+    }));
   });
 
   it("stores shared expense participants separately and reads domain expenses back", () => {

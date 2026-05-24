@@ -88,6 +88,7 @@ describe("receipt OCR", () => {
       lineCount: 2,
     }));
     expect(result.receipt).toEqual(expect.objectContaining({
+      eventId: expect.stringMatching(/^evt_hk_food/),
       imageStored: true,
       provider: "apple-vision",
       ocrText: "2026-05-20 13:11:15\n$273.0",
@@ -141,8 +142,6 @@ describe("receipt OCR", () => {
       "receipt",
       "confirm",
       receipt.id,
-      "--event",
-      "HK Food",
       "--paid-by",
       "A",
       "--shared-by",
@@ -172,6 +171,47 @@ describe("receipt OCR", () => {
     expect(JSON.parse(output.pop() ?? "").byCurrency.HKD.transfers).toEqual([
       { from: "B", to: "A", amountMinor: "12400", currency: "HKD" },
     ]);
+  });
+
+  it("rejects confirmation into a different event than the stored receipt event", async () => {
+    const dir = tempDir();
+    const dbPath = join(dir, "expense.sqlite");
+    const imagePath = join(dir, "receipt.jpg");
+    writeFileSync(imagePath, "fake image bytes");
+    process.env.EXPENSE_TRACKER_APPLE_VISION_OCR = mockAppleVisionScript([
+      { text: "$91.00", confidence: 1 },
+    ]);
+
+    const output: string[] = [];
+    const errors: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: errors.push.bind(errors) };
+
+    await runCli(["--db", dbPath, "event", "create", "HK Food"], io);
+    await runCli(["--db", dbPath, "event", "create", "Wrong Event"], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "ingest",
+      imagePath,
+      "--event",
+      "HK Food",
+      "--format",
+      "json",
+    ], io);
+    const receipt = JSON.parse(output.pop() ?? "").receipt;
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "receipt",
+      "confirm",
+      receipt.id,
+      "--event",
+      "Wrong Event",
+    ], io)).resolves.toBe(1);
+
+    expect(errors.join("\n")).toContain("belongs to a different event");
   });
 
   it("infers event OCR language preferences for receipt ingestion", () => {

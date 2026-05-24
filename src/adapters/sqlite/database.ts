@@ -55,6 +55,7 @@ function migrateIfNeeded(db: ExpenseTrackerDb): void {
   db.run(`
     CREATE TABLE IF NOT EXISTS receipts (
       id TEXT PRIMARY KEY,
+      event_id TEXT REFERENCES events(id),
       image_ref TEXT,
       image_sha256 TEXT,
       image_stored INTEGER NOT NULL,
@@ -68,6 +69,7 @@ function migrateIfNeeded(db: ExpenseTrackerDb): void {
       created_at TEXT NOT NULL
     )
   `);
+  addColumnIfMissing(db, "receipts", "event_id TEXT REFERENCES events(id)");
   db.run(`
     CREATE TABLE IF NOT EXISTS expenses (
       id TEXT PRIMARY KEY,
@@ -128,6 +130,7 @@ function migrate(db: ExpenseTrackerDb): void {
   db.run(`
     CREATE TABLE receipts (
       id TEXT PRIMARY KEY,
+      event_id TEXT REFERENCES events(id),
       image_ref TEXT,
       image_sha256 TEXT,
       image_stored INTEGER NOT NULL,

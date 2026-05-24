@@ -49,6 +49,7 @@ export type InsertExpenseInput = Expense & {
 
 export type ReceiptRecord = {
   id: string;
+  eventId?: string;
   imageRef?: string;
   imageSha256?: string;
   imageStored: boolean;
@@ -104,9 +105,15 @@ export function createEvent(db: ExpenseTrackerDb, input: CreateEventInput): Even
 
 export function findEventByName(db: ExpenseTrackerDb, name: string): EventRecord | undefined {
   const event = db.select().from(events).where(eq(events.name, name)).get();
-  if (!event) {
-    return undefined;
-  }
+  return event ? toEventRecord(db, event) : undefined;
+}
+
+export function getEventById(db: ExpenseTrackerDb, id: string): EventRecord | undefined {
+  const event = db.select().from(events).where(eq(events.id, id)).get();
+  return event ? toEventRecord(db, event) : undefined;
+}
+
+function toEventRecord(db: ExpenseTrackerDb, event: typeof events.$inferSelect): EventRecord {
   const participantRows = db
     .select()
     .from(eventParticipants)
@@ -221,6 +228,7 @@ export function updateExpense(db: ExpenseTrackerDb, expense: Expense): void {
 export function insertReceipt(db: ExpenseTrackerDb, receipt: ReceiptRecord): void {
   db.insert(receipts).values({
     id: receipt.id,
+    eventId: receipt.eventId,
     imageRef: receipt.imageRef,
     imageSha256: receipt.imageSha256,
     imageStored: receipt.imageStored,
@@ -242,6 +250,7 @@ export function getReceipt(db: ExpenseTrackerDb, id: string): ReceiptRecord | un
   }
   return {
     id: row.id,
+    eventId: row.eventId ?? undefined,
     imageRef: row.imageRef ?? undefined,
     imageSha256: row.imageSha256 ?? undefined,
     imageStored: row.imageStored,
