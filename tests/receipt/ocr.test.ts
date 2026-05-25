@@ -94,6 +94,7 @@ describe("receipt OCR", () => {
       ocrText: "2026-05-20 13:11:15\n$273.0",
       extractedItemsJson: "[]",
       extractedTotal: "273.00",
+      extractedWarningsJson: "[\"items_not_found\"]",
       confidence: 1,
       retainedRawOcr: true,
     }));
@@ -103,6 +104,7 @@ describe("receipt OCR", () => {
       total: "273.00",
       items: [],
       warnings: ["items_not_found"],
+      clarificationQuestions: ["Receipt total was found, but no line items were detected. Confirm whether to save the total as one item or provide item breakdowns."],
     }));
     expect(existsSync(join(attachmentsDir, result.receipt.imageRef))).toBe(true);
   });
@@ -214,6 +216,8 @@ describe("receipt OCR", () => {
       kind: "receipt_draft",
       receiptId: receipt.id,
       total: "251.00",
+      warnings: [],
+      clarificationQuestions: [],
       items: [
         expect.objectContaining({ name: "牛餐", amount: "248.00" }),
         expect.objectContaining({ name: "檸茶", amount: "3.00" }),
@@ -362,6 +366,7 @@ describe("receipt OCR", () => {
     });
 
     expect(draft).toEqual({
+      merchant: "安平燒肉",
       currency: "HKD",
       incurredAt: "2026-05-20T13:11:15+08:00",
       total: "273.00",
@@ -374,7 +379,28 @@ describe("receipt OCR", () => {
         },
       ],
       warnings: ["low_confidence_lines_ignored"],
+      clarificationQuestions: ["Some low-confidence OCR lines were ignored. Review the receipt image before confirming."],
     });
+  });
+
+  it("does not treat receipt metadata as a merchant", () => {
+    const draft = extractReceiptDraft({
+      currencies: ["HKD"],
+      ocr: {
+        provider: "apple-vision",
+        languages: ["zh-Hant", "en-US"],
+        lines: [
+          { text: "Tel: 2806 1688", confidence: 1 },
+          { text: "Order: A11861", confidence: 1 },
+          { text: "KISS TEA", confidence: 0.95 },
+          { text: "88.00", confidence: 1 },
+          { text: "91.00", confidence: 1 },
+          { text: "91.00", confidence: 1 },
+        ],
+      },
+    });
+
+    expect(draft.merchant).toBe("KISS TEA");
   });
 
   it("ignores receipt metadata numbers when OCR misses Chinese labels", () => {
@@ -410,6 +436,56 @@ describe("receipt OCR", () => {
         expect.objectContaining({ amount: "88.00" }),
         expect.objectContaining({ amount: "3.00" }),
       ],
+    }));
+  });
+
+  it("supports correcting a saved receipt-derived item without mutating raw receipt OCR", async () => {
+    const dir = tempDir();
+    const dbPath = join(dir, "expense.sqlite");
+    const imagePath = join(dir, "receipt.jpg");
+    writeFileSync(imagePath, "fake image bytes");
+    process.env.EXPENSE_TRACKER_APPLE_VISION_OCR = mockAppleVisionScript([
+      { text: "KISS TEA", confidence: 1 },
+      { text: "Tea 90.00", confidence: 1 },
+      { text: "Total 91.00", confidence: 1 },
+    ]);
+
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "HK Food"], io);
+    await runCli(["--db", dbPath, "receipt", "ingest", imagePath, "--event", "HK Food", "--format", "json"], io);
+    const receipt = JSON.parse(output.pop() ?? "").receipt;
+    await runCli(["--db", dbPath, "receipt", "confirm", receipt.id, "--format", "json"], io);
+    const confirmed = JSON.parse(output.pop() ?? "");
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "chat",
+      "correct",
+      "改做 $92",
+      "--event",
+      "HK Food",
+      "--item-id",
+      confirmed.expenses[0].id,
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toEqual(expect.objectContaining({
+      kind: "updated_item",
+      item: expect.objectContaining({
+        receiptId: receipt.id,
+        amountMinor: "9200",
+        description: "Tea",
+      }),
+    }));
+
+    await runCli(["--db", dbPath, "receipt", "draft", receipt.id, "--format", "json"], io);
+    expect(JSON.parse(output.pop() ?? "")).toEqual(expect.objectContaining({
+      ocrText: "KISS TEA\nTea 90.00\nTotal 91.00",
+      total: "91.00",
     }));
   });
 });

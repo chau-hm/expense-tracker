@@ -19,11 +19,13 @@ export type ExtractedReceiptItem = {
 };
 
 export type ExtractedReceiptDraft = {
+  merchant?: string;
   currency: string;
   incurredAt?: string;
   total?: string;
   items: ExtractedReceiptItem[];
   warnings: string[];
+  clarificationQuestions: string[];
 };
 
 export type ReceiptOcrProvider = {
@@ -94,11 +96,13 @@ export function extractReceiptDraft(input: {
   }
 
   return {
+    merchant: extractMerchant(input.ocr.lines, minimumConfidence),
     currency,
     incurredAt: extractReceiptDate(input.ocr.lines),
     total: totalCandidate?.amount,
     items,
     warnings,
+    clarificationQuestions: buildReceiptClarificationQuestions(warnings),
   };
 }
 
@@ -148,6 +152,82 @@ function extractReceiptDate(lines: ReceiptOcrLine[]): string | undefined {
     }
   }
   return undefined;
+}
+
+function extractMerchant(lines: ReceiptOcrLine[], minimumConfidence: number): string | undefined {
+  const firstAmountIndex = lines.findIndex((line) => {
+    return parseReceiptAmount(line.text) !== undefined && !isMetadataAmountLine(line.text);
+  });
+  const headerLines = lines.slice(0, firstAmountIndex === -1 ? Math.min(lines.length, 8) : firstAmountIndex);
+  const candidate = headerLines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.confidence >= minimumConfidence)
+    .filter(({ line }) => !isMerchantMetadataLine(line.text))
+    .map(({ line, index }) => ({
+      text: normalizeMerchantName(line.text),
+      score: merchantScore(line.text, index),
+    }))
+    .filter((candidate) => candidate.text !== "")
+    .sort((a, b) => b.score - a.score)[0];
+
+  return candidate?.text;
+}
+
+function normalizeMerchantName(text: string): string {
+  return text
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function merchantScore(text: string, index: number): number {
+  let score = 10 - index;
+  if (/[\u4e00-\u9fff]/.test(text)) {
+    score += 4;
+  }
+  if (/^[A-Z][A-Z\s&'.-]{2,}$/.test(text.trim())) {
+    score += 3;
+  }
+  if (/restaurant|grill|tea|cafe|coffee|燒肉|烧肉|餐廳|餐厅|冰室|茶|粥|麵|面/i.test(text)) {
+    score += 2;
+  }
+  return score;
+}
+
+function isMerchantMetadataLine(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed === "") {
+    return true;
+  }
+  if (parseReceiptAmount(trimmed) !== undefined || extractReceiptDate([{ text: trimmed, confidence: 1 }])) {
+    return true;
+  }
+  if (/\b(?:tel|phone|ref|invoice|receipt|order|table|station|cashier|terminal|auth|trace|address)\b/i.test(trimmed)) {
+    return true;
+  }
+  if (/電話|地址|單號|单号|枱|台號|台号|收銀|收银|發票|发票/.test(trimmed)) {
+    return true;
+  }
+  if (/^[#:：]|[#＃][^0-9]*\d+/.test(trimmed)) {
+    return true;
+  }
+  if (/^[\d\s:./-]+$/.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+export function buildReceiptClarificationQuestions(warnings: string[]): string[] {
+  const questions: string[] = [];
+  if (warnings.includes("total_not_found")) {
+    questions.push("Receipt total was not detected. Provide the final total before confirming.");
+  }
+  if (warnings.includes("items_not_found")) {
+    questions.push("Receipt total was found, but no line items were detected. Confirm whether to save the total as one item or provide item breakdowns.");
+  }
+  if (warnings.includes("low_confidence_lines_ignored")) {
+    questions.push("Some low-confidence OCR lines were ignored. Review the receipt image before confirming.");
+  }
+  return questions;
 }
 
 function parseReceiptAmount(text: string): string | undefined {

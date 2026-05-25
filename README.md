@@ -17,6 +17,12 @@ Agent-native expense tracker，主介面預設係聊天 / slash command，而唔
 - OpenClaw wrapper：`expense-openclaw`
 - workspace skill：`expense`
 
+Phase 3 receipt intake 狀態：
+
+- receipt CLI/helper functional slice 已完成：receipt image 可以經 local Apple Vision OCR ingest，輸出 draft，再 confirm 成 receipt-linked expenses。
+- Phase 3 remaining implementation items are complete as of 2026-05-25: merchant candidate extraction, low-confidence receipt clarification prompts, and post-save receipt correction regression coverage.
+- 後續如果 chat-only review 變痛，可以再做 fully interactive receipt review UI。
+
 未實作：
 
 - fully interactive receipt review UI

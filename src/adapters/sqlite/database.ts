@@ -61,8 +61,10 @@ function migrateIfNeeded(db: ExpenseTrackerDb): void {
       image_stored INTEGER NOT NULL,
       image_deleted_at TEXT,
       ocr_text TEXT,
+      merchant TEXT,
       extracted_items_json TEXT,
       extracted_total TEXT,
+      extracted_warnings_json TEXT,
       confidence INTEGER,
       provider TEXT,
       retained_raw_ocr INTEGER NOT NULL,
@@ -70,6 +72,8 @@ function migrateIfNeeded(db: ExpenseTrackerDb): void {
     )
   `);
   addColumnIfMissing(db, "receipts", "event_id TEXT REFERENCES events(id)");
+  addColumnIfMissing(db, "receipts", "merchant TEXT");
+  addColumnIfMissing(db, "receipts", "extracted_warnings_json TEXT");
   db.run(`
     CREATE TABLE IF NOT EXISTS expenses (
       id TEXT PRIMARY KEY,
@@ -136,8 +140,10 @@ function migrate(db: ExpenseTrackerDb): void {
       image_stored INTEGER NOT NULL,
       image_deleted_at TEXT,
       ocr_text TEXT,
+      merchant TEXT,
       extracted_items_json TEXT,
       extracted_total TEXT,
+      extracted_warnings_json TEXT,
       confidence INTEGER,
       provider TEXT,
       retained_raw_ocr INTEGER NOT NULL,

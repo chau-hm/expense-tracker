@@ -55,8 +55,10 @@ export type ReceiptRecord = {
   imageStored: boolean;
   imageDeletedAt?: string;
   ocrText?: string;
+  merchant?: string;
   extractedItemsJson?: string;
   extractedTotal?: string;
+  extractedWarningsJson?: string;
   confidence?: number;
   provider?: string;
   retainedRawOcr: boolean;
@@ -234,8 +236,10 @@ export function insertReceipt(db: ExpenseTrackerDb, receipt: ReceiptRecord): voi
     imageStored: receipt.imageStored,
     imageDeletedAt: receipt.imageDeletedAt,
     ocrText: receipt.ocrText,
+    merchant: receipt.merchant,
     extractedItemsJson: receipt.extractedItemsJson,
     extractedTotal: receipt.extractedTotal,
+    extractedWarningsJson: receipt.extractedWarningsJson,
     confidence: receipt.confidence,
     provider: receipt.provider,
     retainedRawOcr: receipt.retainedRawOcr,
@@ -256,8 +260,10 @@ export function getReceipt(db: ExpenseTrackerDb, id: string): ReceiptRecord | un
     imageStored: row.imageStored,
     imageDeletedAt: row.imageDeletedAt ?? undefined,
     ocrText: row.ocrText ?? undefined,
+    merchant: row.merchant ?? undefined,
     extractedItemsJson: row.extractedItemsJson ?? undefined,
     extractedTotal: row.extractedTotal ?? undefined,
+    extractedWarningsJson: row.extractedWarningsJson ?? undefined,
     confidence: row.confidence ?? undefined,
     provider: row.provider ?? undefined,
     retainedRawOcr: row.retainedRawOcr,

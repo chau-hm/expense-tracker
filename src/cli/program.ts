@@ -50,6 +50,7 @@ import {
 import { normalizeOcrLanguagePreferences } from "../domain/event-ocr-context.js";
 import {
   averageReceiptOcrConfidence,
+  buildReceiptClarificationQuestions,
   extractReceiptDraft,
   type ExtractedReceiptItem,
   formatReceiptOcrText,
@@ -599,8 +600,10 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         eventId: eventRecord.id,
         ...stored,
         ocrText: formatReceiptOcrText(ocr),
+        merchant: extracted.merchant,
         extractedItemsJson: JSON.stringify(extracted.items),
         extractedTotal: extracted.total,
+        extractedWarningsJson: JSON.stringify(extracted.warnings),
         provider: ocr.provider,
         confidence: averageReceiptOcrConfidence(ocr),
         retainedRawOcr: true,
@@ -632,8 +635,11 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         kind: "receipt_draft" as const,
         receiptId: id,
         eventId: receiptRecord.eventId,
+        merchant: receiptRecord.merchant,
         total: receiptRecord.extractedTotal,
         items: parseExtractedReceiptItems(receiptRecord.extractedItemsJson),
+        warnings: parseReceiptWarnings(receiptRecord.extractedWarningsJson),
+        clarificationQuestions: buildReceiptClarificationQuestions(parseReceiptWarnings(receiptRecord.extractedWarningsJson)),
         ocrText: receiptRecord.ocrText,
         confidence: receiptRecord.confidence,
       };
@@ -693,7 +699,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       });
       const expenseType = normalizeExpenseType(options.type);
       const expenses = confirmedItems.map((item, index) => {
-        const description = item.name ?? options.description ?? `Receipt ${id}`;
+        const description = item.name ?? options.description ?? receiptRecord.merchant ?? `Receipt ${id}`;
         const base = {
           id: createId("exp", `${eventRecord.name}-${index}-${description}-${id}-${now}`),
           eventId: eventRecord.id,
@@ -893,6 +899,18 @@ function parseExtractedReceiptItems(value?: string): Array<{ name?: string; amou
   });
 }
 
+function parseReceiptWarnings(value?: string): string[] {
+  if (!value) {
+    return [];
+  }
+
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed) || !parsed.every((warning) => typeof warning === "string")) {
+    throw new Error("Receipt warnings are not a JSON string array");
+  }
+  return parsed;
+}
+
 function isExtractedReceiptItem(value: unknown): value is ExtractedReceiptItem {
   return typeof value === "object"
     && value !== null
@@ -996,15 +1014,16 @@ function formatChatParseText(result: ChatParseResult): string {
 }
 
 function formatReceiptIngestText(result: {
-  receipt: { id: string; provider?: string; confidence?: number; imageStored: boolean };
+  receipt: { id: string; provider?: string; confidence?: number; imageStored: boolean; merchant?: string };
   event: string;
   ocrLanguages: string[];
   lineCount: number;
-  extracted?: { currency: string; total?: string; items: unknown[]; warnings: string[] };
+  extracted?: { currency: string; merchant?: string; total?: string; items: unknown[]; warnings: string[] };
 }): string {
   return [
     `Ingested receipt ${result.receipt.id}`,
     `Event: ${result.event}`,
+    `Merchant: ${result.extracted?.merchant ?? result.receipt.merchant ?? "n/a"}`,
     `OCR: ${result.receipt.provider ?? "unknown"} (${result.ocrLanguages.join(", ")})`,
     `Lines: ${result.lineCount}`,
     `Average confidence: ${result.receipt.confidence ?? "n/a"}`,
@@ -1018,15 +1037,21 @@ function formatReceiptIngestText(result: {
 function formatReceiptDraftText(result: {
   receiptId: string;
   eventId?: string;
+  merchant?: string;
   total?: string;
   items: Array<{ name?: string; amount: string }>;
+  warnings?: string[];
+  clarificationQuestions?: string[];
   confidence?: number;
 }): string {
   return [
     `Receipt draft ${result.receiptId}`,
     `Event ID: ${result.eventId ?? "n/a"}`,
+    `Merchant: ${result.merchant ?? "n/a"}`,
     `Total: ${result.total ?? "n/a"}`,
     `Average confidence: ${result.confidence ?? "n/a"}`,
+    `Warnings: ${result.warnings?.length ? result.warnings.join(", ") : "none"}`,
+    ...((result.clarificationQuestions ?? []).map((question) => `Question: ${question}`)),
     `Items: ${result.items.length}`,
     ...result.items.map((item, index) => `${index + 1}. ${item.name ?? "item"} | ${item.amount}`),
   ].join("\n");
