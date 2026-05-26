@@ -18,7 +18,7 @@ describe("event summary CLI", () => {
     const output: string[] = [];
     const io = { stdout: output.push.bind(output), stderr: () => undefined };
 
-    await runCli(["--db", dbPath, "event", "create", "Trip", "--people", "A,B"], io);
+    await runCli(["--db", dbPath, "event", "create", "Trip"], io);
     await runCli([
       "--db",
       dbPath,

@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { createInMemoryDatabase } from "../../src/adapters/sqlite/database.js";
 import {
   createEvent,
+  findEventByName,
   getReceipt,
   insertExpense,
   insertReceipt,
   listEventExpenses,
+  updateExpense,
 } from "../../src/adapters/sqlite/repository.js";
 import type { ParticipantId } from "../../src/domain/settlement.js";
 
@@ -129,5 +131,102 @@ describe("SQLite repository", () => {
         deletedAt: undefined,
       },
     ]);
+  });
+
+  it("adds newly introduced expense participants to the event membership", () => {
+    const db = createInMemoryDatabase();
+    createEvent(db, {
+      id: "evt_trip",
+      name: "Trip",
+      defaultCurrency: "HKD",
+      defaultParticipantId: SELF,
+      participants: [],
+      createdAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    insertExpense(db, {
+      id: "exp_taxi",
+      eventId: "evt_trip",
+      type: "shared",
+      status: "active",
+      paidBy: A,
+      currency: "HKD",
+      amountMinor: 12_000n,
+      category: "taxi",
+      participants: [A, B],
+      createdAt: "2026-05-17T00:00:00.000Z",
+      updatedAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    expect(findEventByName(db, "Trip")?.participantIds).toEqual([SELF, A, B]);
+  });
+
+  it("updates event membership when an expense changes payer or beneficiary", () => {
+    const db = createInMemoryDatabase();
+    createEvent(db, {
+      id: "evt_trip",
+      name: "Trip",
+      defaultCurrency: "HKD",
+      defaultParticipantId: SELF,
+      participants: [A],
+      createdAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    insertExpense(db, {
+      id: "exp_ticket",
+      eventId: "evt_trip",
+      type: "fronted_personal",
+      status: "active",
+      paidBy: A,
+      beneficiary: SELF,
+      currency: "HKD",
+      amountMinor: 12_000n,
+      category: "ticket",
+      createdAt: "2026-05-17T00:00:00.000Z",
+      updatedAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    updateExpense(db, {
+      id: "exp_ticket",
+      eventId: "evt_trip",
+      type: "fronted_personal",
+      status: "active",
+      paidBy: B,
+      beneficiary: A,
+      currency: "HKD",
+      amountMinor: 12_000n,
+      category: "ticket",
+      updatedAt: "2026-05-18T00:00:00.000Z",
+    });
+
+    expect(findEventByName(db, "Trip")?.participantIds).toEqual([SELF, A, B]);
+  });
+
+  it("adds personal expense payer and owner to the event membership once", () => {
+    const db = createInMemoryDatabase();
+    createEvent(db, {
+      id: "evt_trip",
+      name: "Trip",
+      defaultCurrency: "HKD",
+      defaultParticipantId: SELF,
+      participants: [A],
+      createdAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    insertExpense(db, {
+      id: "exp_personal",
+      eventId: "evt_trip",
+      type: "personal",
+      status: "active",
+      paidBy: A,
+      owner: B,
+      currency: "HKD",
+      amountMinor: 12_000n,
+      category: "souvenir",
+      createdAt: "2026-05-17T00:00:00.000Z",
+      updatedAt: "2026-05-17T00:00:00.000Z",
+    });
+
+    expect(findEventByName(db, "Trip")?.participantIds).toEqual([SELF, A, B]);
   });
 });

@@ -171,6 +171,56 @@ describe("core CLI commands", () => {
     });
   });
 
+  it("shows participants introduced by expenses in event detail", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "Trip"], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--paid-by",
+      "A",
+      "--amount-minor",
+      "12000",
+      "--shared-by",
+      "A,B",
+    ], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Trip",
+      "--type",
+      "fronted-personal",
+      "--paid-by",
+      "C",
+      "--beneficiary",
+      "B",
+      "--amount-minor",
+      "3000",
+    ], io);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "event",
+      "detail",
+      "Trip",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "").event.participantIds).toEqual(["self", "A", "B", "C"]);
+  });
+
   it("defaults event currency and personal expense fields for fast chat entry", async () => {
     const dbPath = tempDbPath();
     const output: string[] = [];

@@ -17,6 +17,7 @@ This slice defines the schema and a small in-memory-independent repository contr
 - Receipt images are stored as references/metadata, not binary blobs.
 - Repository can create an event and include the default participant when no participants are provided.
 - Repository can insert expenses and read them back as domain `Expense` records.
+- Repository adds newly introduced expense participants to the linked event membership so event review output stays complete.
 - Repository can update item status/fields through item domain logic later.
 
 ## Tables

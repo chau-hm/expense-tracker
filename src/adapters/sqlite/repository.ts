@@ -143,17 +143,12 @@ function toEventRecord(db: ExpenseTrackerDb, event: typeof events.$inferSelect):
 }
 
 export function insertExpense(db: ExpenseTrackerDb, expense: InsertExpenseInput): void {
-  ensureParticipant(db, expense.paidBy, expense.createdAt);
-  if (expense.type === "personal") {
-    ensureParticipant(db, expense.owner, expense.createdAt);
+  const participantIds = expenseParticipantIds(expense);
+  for (const participantId of participantIds) {
+    ensureParticipant(db, participantId, expense.createdAt);
   }
-  if (expense.type === "fronted_personal") {
-    ensureParticipant(db, expense.beneficiary, expense.createdAt);
-  }
-  if (expense.type === "shared") {
-    for (const participantId of expense.participants) {
-      ensureParticipant(db, participantId, expense.createdAt);
-    }
+  if (expense.eventId) {
+    ensureEventParticipants(db, expense.eventId, participantIds, expense.createdAt);
   }
 
   db.insert(expenses).values({
@@ -196,12 +191,13 @@ export function listExpenses(db: ExpenseTrackerDb): Expense[] {
 }
 
 export function updateExpense(db: ExpenseTrackerDb, expense: Expense): void {
-  ensureParticipant(db, expense.paidBy, expense.updatedAt ?? new Date().toISOString());
-  if (expense.type === "personal") {
-    ensureParticipant(db, expense.owner, expense.updatedAt ?? new Date().toISOString());
+  const updatedAt = expense.updatedAt ?? new Date().toISOString();
+  const participantIds = expenseParticipantIds(expense);
+  for (const participantId of participantIds) {
+    ensureParticipant(db, participantId, updatedAt);
   }
-  if (expense.type === "fronted_personal") {
-    ensureParticipant(db, expense.beneficiary, expense.updatedAt ?? new Date().toISOString());
+  if (expense.eventId) {
+    ensureEventParticipants(db, expense.eventId, participantIds, updatedAt);
   }
 
   db.update(expenses)
@@ -227,7 +223,6 @@ export function updateExpense(db: ExpenseTrackerDb, expense: Expense): void {
   db.delete(expenseParticipants).where(eq(expenseParticipants.expenseId, expense.id)).run();
   if (expense.type === "shared") {
     for (const participantId of expense.participants) {
-      ensureParticipant(db, participantId, expense.updatedAt ?? new Date().toISOString());
       db.insert(expenseParticipants)
         .values({ expenseId: expense.id, participantId })
         .run();
@@ -342,6 +337,34 @@ function ensureParticipant(
     })
     .onConflictDoNothing()
     .run();
+}
+
+function ensureEventParticipants(
+  db: ExpenseTrackerDb,
+  eventId: string,
+  participantIds: ParticipantId[],
+  createdAt: string,
+): void {
+  for (const participantId of uniqueParticipants(participantIds)) {
+    ensureParticipant(db, participantId, createdAt);
+    db.insert(eventParticipants)
+      .values({
+        eventId,
+        participantId,
+      })
+      .onConflictDoNothing()
+      .run();
+  }
+}
+
+function expenseParticipantIds(expense: Expense): ParticipantId[] {
+  if (expense.type === "personal") {
+    return uniqueParticipants([expense.paidBy, expense.owner]);
+  }
+  if (expense.type === "fronted_personal") {
+    return uniqueParticipants([expense.paidBy, expense.beneficiary]);
+  }
+  return uniqueParticipants([expense.paidBy, ...expense.participants]);
 }
 
 function uniqueParticipants(participantIds: ParticipantId[]): ParticipantId[] {
