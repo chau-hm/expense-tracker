@@ -110,6 +110,14 @@ export function findEventByName(db: ExpenseTrackerDb, name: string): EventRecord
   return event ? toEventRecord(db, event) : undefined;
 }
 
+export function listEvents(db: ExpenseTrackerDb): EventRecord[] {
+  return db.select()
+    .from(events)
+    .all()
+    .map((event) => toEventRecord(db, event))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
 export function getEventById(db: ExpenseTrackerDb, id: string): EventRecord | undefined {
   const event = db.select().from(events).where(eq(events.id, id)).get();
   return event ? toEventRecord(db, event) : undefined;

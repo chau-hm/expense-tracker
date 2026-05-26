@@ -6,7 +6,7 @@ Agent-native expense tracker，主介面預設係聊天 / slash command，而唔
 
 已實作：
 
-- event 建立、結算、摘要、匯出
+- event 建立、列表、詳情、結算、摘要、匯出
 - shared expense 平均分帳
 - item list/search/edit/delete/restore
 - chat intake Phase 2：自然語言 draft、correction、item list/search、item edit/delete/restore、event summary/settlement
@@ -120,6 +120,13 @@ expense-tracker expense add \
 
 ```bash
 expense-tracker event summary "Japan Trip"
+```
+
+列出 / 檢視 event：
+
+```bash
+expense-tracker event list
+expense-tracker event detail "Japan Trip"
 ```
 
 睇結算：

@@ -13,6 +13,7 @@ import {
   insertExpense,
   insertReceipt,
   type InsertExpenseInput,
+  listEvents,
   listExpenses,
   listEventExpenses,
   updateExpense,
@@ -124,6 +125,33 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       });
 
       writeOutput(io, options.format, record, `Created event ${record.name}`);
+    });
+
+  event
+    .command("list")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((options: { format: Format }) => {
+      const db = openDb(program);
+      const records = listEvents(db);
+      writeOutput(io, options.format, records, formatEventListText(records));
+    });
+
+  event
+    .command("detail")
+    .argument("<name>")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((name: string, options: { format: Format }) => {
+      const db = openDb(program);
+      const record = findEventByName(db, name);
+      if (!record) {
+        throw new Error(`Event not found: ${name}`);
+      }
+      const summary = summarizeEvent({
+        event: record,
+        expenses: listEventExpenses(db, record.id),
+      });
+      const result = { event: record, summary };
+      writeOutput(io, options.format, stringifyBigInts(result), formatEventDetailText(result));
     });
 
   event
@@ -961,6 +989,47 @@ function formatSettlementText(settlement: ReturnType<typeof calculateSettlement>
     }
   }
   return lines.length > 0 ? lines.join("\n") : "No settlement needed";
+}
+
+function formatEventListText(events: Array<{
+  name: string;
+  status: string;
+  defaultCurrency: string;
+  supportedCurrencies: string[];
+  participantIds: ParticipantId[];
+}>): string {
+  if (events.length === 0) {
+    return "No events";
+  }
+  return events
+    .map((event) => [
+      event.name,
+      event.status,
+      event.defaultCurrency,
+      `currencies=${event.supportedCurrencies.join(",")}`,
+      `participants=${event.participantIds.join(",")}`,
+    ].join(" | "))
+    .join("\n");
+}
+
+function formatEventDetailText(result: {
+  event: {
+    name: string;
+    status: string;
+    defaultCurrency: string;
+    supportedCurrencies: string[];
+    ocrLanguagePreferences: string[];
+    ocrLanguageSource: string;
+  };
+  summary: EventSummary;
+}): string {
+  return [
+    `${result.event.name} (${result.event.status})`,
+    `Default currency: ${result.event.defaultCurrency}`,
+    `Supported currencies: ${result.event.supportedCurrencies.join(", ")}`,
+    `OCR languages: ${result.event.ocrLanguagePreferences.join(", ")} (${result.event.ocrLanguageSource})`,
+    formatSummaryText(result.summary),
+  ].join("\n");
 }
 
 function formatSummaryText(summary: EventSummary): string {

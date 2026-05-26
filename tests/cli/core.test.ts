@@ -107,6 +107,70 @@ describe("core CLI commands", () => {
     });
   });
 
+  it("lists events and shows event detail for review", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "Daily Expenses"], io);
+    await runCli(["--db", dbPath, "event", "create", "Japan Trip", "--people", "A,B"], io);
+    await runCli([
+      "--db",
+      dbPath,
+      "expense",
+      "add",
+      "--event",
+      "Japan Trip",
+      "--paid-by",
+      "A",
+      "--currency",
+      "HKD",
+      "--amount-minor",
+      "240000",
+      "--shared-by",
+      "A,B",
+      "--category",
+      "flight",
+    ], io);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "event",
+      "list",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toEqual([
+      expect.objectContaining({ name: "Daily Expenses", participantIds: ["self"] }),
+      expect.objectContaining({ name: "Japan Trip", participantIds: ["self", "A", "B"] }),
+    ]);
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "event",
+      "detail",
+      "Japan Trip",
+      "--format",
+      "json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toEqual({
+      event: expect.objectContaining({
+        name: "Japan Trip",
+        defaultCurrency: "HKD",
+        supportedCurrencies: ["HKD"],
+        participantIds: ["self", "A", "B"],
+      }),
+      summary: expect.objectContaining({
+        activeItemCount: 1,
+        totalsByCurrency: { HKD: "240000" },
+      }),
+    });
+  });
+
   it("defaults event currency and personal expense fields for fast chat entry", async () => {
     const dbPath = tempDbPath();
     const output: string[] = [];
