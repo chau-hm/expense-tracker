@@ -19,29 +19,43 @@ OpenClaw wrapper 接受 `/expense` 或 `expense` prefix。日常建議用 produc
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /expense summary "Japan Trip"
 ```
 
-### 完整 Lifecycle
+### 自然語言完整 Lifecycle
+
+以下例子係日常推薦用法：使用者用 Telegram / OpenClaw 直接講低支出，agent 只負責理解意圖；真正入帳、修改、刪除、summary、settlement 都交返 deterministic CLI/domain 做驗證。
 
 #### 1. Create Event
 
-```text
-/expense event create "Japan Trip" --currency JPY --people Alice,Bob
-```
-
-未指定 `--currency` 時，event default currency 係 `HKD`。未指定 people 時會先加入 `self`，之後新增 expense 時會自動把 payer / shared participant / owner / beneficiary 加入 event membership。
-
-#### 2. Add Expense By Natural Language
+先開一個多人、多幣種 event：
 
 ```text
-/expense 交通費，$5.8
-/expense 食飯 HKD 186
-/expense taxi $60
+/expense event create "澳門週末" --currency HKD --currencies HKD,MOP --people self,Alice,Bob
+或者
+/expense 開新event "澳門週末"，預設用港幣，可以用港幣/葡幣，參加者，自己/Alice/Bob
 ```
 
-自然語言新增支出會先產生 draft；event 來自目前對話 context 或 `chat parse --event`。確認後先用 deterministic command 寫入 DB。常見轉換：
+`--currency` 是預設入帳 currency；`--currencies` 是 event 支援 currency list，用於 settlement 分組同 receipt OCR language context。未指定 `--currency` 時，event default currency 係 `HKD`。未指定 people 時會先加入 `self`，之後新增 expense 時會自動把 payer / shared participant / owner / beneficiary 加入 event membership。
+
+#### 2. Add Shared Expenses
+
+```text
+/expense 澳門週末 船飛 HKD 525 self paid，self Alice Bob share
+或者
+/expense 澳門週末，船飛 525，all share
+
+/expense 澳門週末 酒店 MOP 1680 Alice paid，三個人夾
+
+/expense 澳門週末 晚飯 HKD 936 Bob paid all share
+
+/expense 澳門週末 的士 HKD 120 self paid Alice Bob share
+```
+
+以上每句都會先經自然語言解析成 draft，再由 deterministic command 寫入 DB。常見轉換：
 
 - `HKD 186` / `$186` -> `--amount-minor 18600`
 - `交通費` -> `--category transport`
 - `食飯` / `午餐` / `晚餐` -> `--category food`
+- `三個人夾` / `all share` -> event participants 一齊分
+- `self paid` / `Alice paid` -> `--paid-by`
 - 無指定 payer 時預設 `self`，或者由 wrapper context 傳入
 - 無指定 shared participants 時預設 `self`，或者由 wrapper context 傳入
 - 無指定 currency 時使用 event default currency
@@ -50,14 +64,17 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /e
 
 ```bash
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
-  /expense chat parse --event "Japan Trip" '交通費，$5.8'
+  /expense chat parse --event "澳門週末" '船飛 HKD 540 self paid，self Alice Bob share'
 
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
   /expense expense add \
-  --event "Japan Trip" \
-  --amount-minor 580 \
+  --event "澳門週末" \
+  --paid-by self \
+  --currency HKD \
+  --amount-minor 54000 \
+  --shared-by self,Alice,Mary \
   --category transport \
-  --description "交通費"
+  --description "船飛"
 ```
 
 #### 3. Add Personal / Fronted Personal Expense
@@ -65,31 +82,36 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
 個人支出只計入 totals/category totals，不會產生 settlement：
 
 ```text
-/expense Japan Trip personal lunch HKD 186
+/expense 澳門週末 self personal coffee HKD 42
 ```
 
 幫人先付嘅個人支出會產生直接還款：
 
 ```text
-/expense Japan Trip Alice paid HKD 30 for Bob souvenir fronted personal
+/expense 澳門週末 Alice paid MOP 88 for Bob 手信 fronted personal
 ```
 
 CLI 對照：
 
 ```bash
 expense-tracker expense add \
-  --event "Japan Trip" \
+  --event "澳門週末" \
   --type personal \
-  --amount-minor 18600 \
-  --category food
+  --owner self \
+  --currency HKD \
+  --amount-minor 4200 \
+  --category food \
+  --description "coffee"
 
 expense-tracker expense add \
-  --event "Japan Trip" \
+  --event "澳門週末" \
   --type fronted-personal \
-  --paid-by Alice \
+  --paid-by Alic \
   --beneficiary Bob \
-  --amount-minor 3000 \
-  --category souvenir
+  --currency MOP \
+  --amount-minor 8800 \
+  --category souvenir \
+  --description "手信"
 ```
 
 多人成本、payer、shared participants、personal/fronted-personal 呢類會影響結算責任嘅資料，日常可以由 agent 轉成 deterministic command；資料唔清楚時應先追問。
@@ -98,17 +120,16 @@ expense-tracker expense add \
 
 ```text
 /expense event list
-/expense event detail "Japan Trip"
-/expense summary "Japan Trip"
-/expense list "Japan Trip"
-/expense search "Japan Trip" hotel
+/expense event detail "澳門週末"
+/expense list 澳門週末
+/expense search 澳門週末 酒店
 ```
 
-`summary` 會顯示 event status、participants、active item count、currency totals、category totals、settlement。`list/search` 是 read-only，不會改 DB。
+`event list/detail` 用嚟確認 event metadata；`list/search` 用嚟搵 stable item id 或檢查候選 target。呢啲 read-only command 不會改 DB。
 
 #### 5. Correct / Edit / Delete / Restore
 
-修正 draft：
+修正最近 draft：
 
 ```text
 /expense 改做 $6
@@ -117,10 +138,10 @@ expense-tracker expense add \
 管理已儲存 item：
 
 ```text
-/expense edit exp_japan_trip_transport_xxx 改做 $6
-/expense edit taxi 改做 $6
-/expense delete taxi
-/expense restore exp_japan_trip_transport_xxx
+/expense edit exp_macau_weekend_taxi_xxx 改做 HKD 132
+/expense edit 的士 改做 HKD 132
+/expense delete coffee
+/expense restore exp_macau_weekend_coffee_xxx
 ```
 
 安全規則：
@@ -132,13 +153,32 @@ expense-tracker expense add \
 - target missing 或 ambiguous 時，只回 clarification/candidates，不會 mutate DB。
 - edit 無 supported correction patch 時，不會 mutate DB。
 
-#### 6. Receipt OCR / Draft / Confirm
+#### 6. Summary / Settlement / Export
+
+```text
+/expense summary 澳門週末
+
+/expense settle 澳門週末
+
+/expense export 澳門週末
+```
+
+`summary` 會顯示 event status、participants、active item count、currency totals、category totals、settlement。`settle` 只輸出結算建議，不會 mutate DB。`export` 用於 backup 或 agent handoff。
+
+呢組例子應驗證到：
+
+- `coffee` 被 delete 後不參與 settlement，但仍可 restore。
+- HKD / MOP 分開結算，不做 FX conversion。
+- `Ken paid MOP 88 for Mary 手信 fronted personal` 會保留 direct repayment：Bob -> Alice MOP 88。
+- shared expense 會按各自 currency group 計算 balances。
+
+#### 7. Receipt OCR / Draft / Confirm
 
 收到 receipt image 後，agent 可以用 workspace helper 由 OpenClaw media ref 直接 ingest：
 
 ```bash
 /Users/openclaw/.openclaw/workspace/skills/expense/scripts/ingest-receipt-image.sh \
-  --event "Japan Trip" \
+  --event "澳門週末" \
   media://inbound/<file>.jpg
 ```
 
@@ -148,16 +188,16 @@ helper 會 resolve `media://inbound/<file>.jpg`、呼叫 `expense-openclaw recei
 
 ```bash
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
-  /expense receipt ingest /path/to/receipt.jpg --event "Japan Trip"
+  /expense receipt ingest /path/to/receipt.jpg --event "澳門週末"
 
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
   /expense receipt draft rcp_id
 
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
-  /expense receipt confirm rcp_id --items "ramen=90.00;tea=12.00" --paid-by Alice --shared-by Alice,Bob
+  /expense receipt confirm rcp_id --items "minchi=90.00;tea=12.00" --paid-by 阿文 --shared-by 阿文,Ken,Mary
 
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
-  /expense receipt confirm rcp_id --use-total --description "dinner receipt" --paid-by Alice --shared-by Alice,Bob
+  /expense receipt confirm rcp_id --use-total --description "dinner receipt" --paid-by 阿文 --shared-by 阿文,Ken,Mary
 ```
 
 Receipt safety:
@@ -166,16 +206,6 @@ Receipt safety:
 - `receipt confirm` 對新 receipt 會使用 stored `eventId`，不需要再傳 `--event`。
 - 如果手動傳入不同 event，CLI 會拒絕，避免 receipt 入錯 event。
 - raw OCR metadata 不會因 confirm/edit item 而被覆寫；已入帳 item 可用一般 `item edit/delete/restore` 管理。
-
-#### 7. Settlement And Export
-
-```text
-/expense settle "Japan Trip"
-/expense settlement "Japan Trip"
-/expense export "Japan Trip"
-```
-
-Settlement 會按 currency group transfers；無數要夾會顯示 `No settlement needed`。
 
 ## CLI Reference
 
