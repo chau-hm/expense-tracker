@@ -50,6 +50,24 @@ describe("chat expense intake parser", () => {
     }
   });
 
+  it("defaults missing share scope to all event participants when there is more than one participant", () => {
+    const result = parseChatExpense("交通費，$5.8", {
+      eventName: "Trip",
+      participants: ["self", "Alice", "Bob"],
+    });
+
+    expect(result).toEqual({
+      kind: "draft",
+      draft: expect.objectContaining({
+        paidBy: "self",
+        sharedBy: ["self", "Alice", "Bob"],
+      }),
+    });
+    if (result.kind === "draft") {
+      expect(result.draft.commandArgs).toContain("self,Alice,Bob");
+    }
+  });
+
   it("returns clarification when required context is missing", () => {
     expect(parseChatExpense("交通費，$5.8")).toEqual({
       kind: "needs_clarification",

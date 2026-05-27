@@ -265,12 +265,12 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .argument("<text...>")
     .option("--event <name>", "Event context")
     .option("--paid-by <participant>", "Payer participant ID", DEFAULT_PARTICIPANT_ID)
-    .option("--shared-by <people>", "Comma-separated participants", DEFAULT_PARTICIPANT_ID)
+    .option("--shared-by <people>", "Comma-separated participants")
     .option("--format <format>", "Output format: text or json", "text")
     .action((textParts: string[], options: {
       event?: string;
       paidBy: string;
-      sharedBy: string;
+      sharedBy?: string;
       format: Format;
     }) => {
       const text = textParts.join(" ");
@@ -283,7 +283,8 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         eventName: eventRecord?.name,
         defaultCurrency: eventRecord?.defaultCurrency,
         paidBy: options.paidBy as ParticipantId,
-        sharedBy: parsePeople(options.sharedBy),
+        sharedBy: options.sharedBy ? parsePeople(options.sharedBy) : undefined,
+        participants: eventRecord?.participantIds,
       });
       writeOutput(io, options.format, stringifyBigInts(result), formatChatParseText(result));
     });
@@ -1047,6 +1048,15 @@ function formatSummaryText(summary: EventSummary): string {
     lines.push(`Categories ${currency}:`);
     for (const [category, total] of Object.entries(categories)) {
       lines.push(`- ${category}: ${total.toString()}`);
+    }
+  }
+
+  for (const [currency, participantTotals] of Object.entries(summary.participantTotals)) {
+    lines.push(`Participant totals ${currency}:`);
+    for (const [participant, total] of Object.entries(participantTotals)) {
+      lines.push(
+        `- ${participant}: paid ${total.paid.toString()} / share ${total.share.toString()} / net ${total.net.toString()}`,
+      );
     }
   }
 

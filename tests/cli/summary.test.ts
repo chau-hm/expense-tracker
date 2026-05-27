@@ -57,6 +57,13 @@ describe("event summary CLI", () => {
       activeItemCount: 1,
       totalsByCurrency: { HKD: "240000" },
       categoryTotals: { HKD: { flight: "240000" } },
+      participantTotals: {
+        HKD: {
+          self: { paid: "0", share: "0", net: "0" },
+          A: { paid: "240000", share: "120000", net: "120000" },
+          B: { paid: "0", share: "120000", net: "-120000" },
+        },
+      },
       settlement: {
         HKD: {
           balances: { A: "120000", B: "-120000" },

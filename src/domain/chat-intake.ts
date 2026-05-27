@@ -82,6 +82,7 @@ export type ChatParseContext = {
   defaultCurrency?: string;
   paidBy?: ParticipantId;
   sharedBy?: ParticipantId[];
+  participants?: ParticipantId[];
 };
 
 type ParsedAmount = {
@@ -115,7 +116,7 @@ export function parseChatExpense(input: string, context: ChatParseContext = {}):
   }
 
   const paidBy = context.paidBy ?? DEFAULT_PARTICIPANT;
-  const sharedBy = context.sharedBy && context.sharedBy.length > 0 ? context.sharedBy : [DEFAULT_PARTICIPANT];
+  const sharedBy = resolveSharedBy(context);
   const currency = amount.currency ?? context.defaultCurrency ?? DEFAULT_CURRENCY;
   const category = inferCategory(sourceText);
   const description = inferDescription(sourceText, category);
@@ -144,6 +145,16 @@ export function parseChatExpense(input: string, context: ChatParseContext = {}):
       needsConfirmation: true,
     },
   };
+}
+
+function resolveSharedBy(context: ChatParseContext): ParticipantId[] {
+  if (context.sharedBy && context.sharedBy.length > 0) {
+    return context.sharedBy;
+  }
+  if (context.participants && context.participants.length > 1) {
+    return context.participants;
+  }
+  return [DEFAULT_PARTICIPANT];
 }
 
 export function parseChatCorrection(

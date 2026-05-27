@@ -57,7 +57,7 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /e
 - `三個人夾` / `all share` -> event participants 一齊分
 - `self paid` / `Alice paid` -> `--paid-by`
 - 無指定 payer 時預設 `self`，或者由 wrapper context 傳入
-- 無指定 shared participants 時預設 `self`，或者由 wrapper context 傳入
+- 無指定 shared participants 時，如果 event 多於一人，預設 event participants 全部一齊分；單人 event 先預設 `self`
 - 無指定 currency 時使用 event default currency
 
 對應 deterministic flow：
@@ -106,7 +106,7 @@ expense-tracker expense add \
 expense-tracker expense add \
   --event "澳門週末" \
   --type fronted-personal \
-  --paid-by Alic \
+  --paid-by Alice \
   --beneficiary Bob \
   --currency MOP \
   --amount-minor 8800 \
@@ -164,6 +164,20 @@ expense-tracker expense add \
 ```
 
 `summary` 會顯示 event status、participants、active item count、currency totals、category totals、settlement。`settle` 只輸出結算建議，不會 mutate DB。`export` 用於 backup 或 agent handoff。
+
+`summary` 亦會按 currency 輸出每位 participant 嘅 total，方便人工核對 settlement：
+
+```text
+Participant totals HKD:
+- self: paid 68700 / share 52900 / net 15800
+- Alice: paid 0 / share 54700 / net -54700
+- Bob: paid 93600 / share 54700 / net 38900
+
+Participant totals MOP:
+- self: paid 0 / share 56000 / net -56000
+- Alice: paid 176800 / share 56000 / net 120800
+- Bob: paid 0 / share 64800 / net -64800
+```
 
 呢組例子應驗證到：
 
