@@ -9,6 +9,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "ci:local": "deploy/local-ci.sh",
+    "deploy:install-skill": "deploy/install-openclaw-skill.sh",
     "test": "vitest run",
     "test:watch": "vitest"
   },

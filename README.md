@@ -42,6 +42,38 @@ OpenClaw runtime preflight 需要本機已安裝 `openclaw`、`expense-tracker`�
 scripts/openclaw-expense-preflight.sh
 ```
 
+## Local CI / Skill Install
+
+Expense OpenClaw skill source lives in this repo under `skills/expense`. The installed runtime copy lives in:
+
+```text
+/Users/openclaw/.openclaw/workspace/skills/expense
+```
+
+Deploy uses copy install rather than symlink, so the OpenClaw runtime only sees an explicitly installed version:
+
+```bash
+npm run deploy:install-skill
+```
+
+Local CI mirrors the GitHub gate and validates the repo-managed skill files:
+
+```bash
+npm run ci:local
+```
+
+To include OpenClaw runtime checks with temp DB only:
+
+```bash
+deploy/local-ci.sh --openclaw-preflight
+```
+
+Production data stays outside git:
+
+- `/Users/openclaw/.expense-tracker/expense-tracker.sqlite`
+- receipt images / OCR raw outputs
+- Telegram tokens and OpenClaw local config
+
 ### 自然語言完整 Lifecycle
 
 以下例子係日常推薦用法：使用者用 Telegram / OpenClaw 直接講低支出，agent 只負責理解意圖；真正入帳、修改、刪除、summary、settlement 都交返 deterministic CLI/domain 做驗證。
