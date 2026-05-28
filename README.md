@@ -19,6 +19,29 @@ OpenClaw wrapper 接受 `/expense` 或 `expense` prefix。日常建議用 produc
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite /expense summary "Japan Trip"
 ```
 
+## GitHub CI/CD
+
+GitHub 先負責 CI gate，不直接 deploy 到本機 OpenClaw runtime。每個 PR 同 `main` push 會跑 `.github/workflows/ci.yml`：
+
+- `npm ci`
+- `npm run build`
+- `npm test`
+
+呢個 workflow 只用 repository 內 fixtures / temp data，不需要 production SQLite DB、Telegram token、OpenClaw config 或本機 secrets。Local deployment 會另外由本機 pull 已通過 CI 嘅 `main`，再跑 OpenClaw preflight / data backup / runtime reload。
+
+本機 deploy 前可以先跑：
+
+```bash
+npm run build
+npm test
+```
+
+OpenClaw runtime preflight 需要本機已安裝 `openclaw`、`expense-tracker`、`expense-openclaw`，所以唔放入 GitHub hosted runner：
+
+```bash
+scripts/openclaw-expense-preflight.sh
+```
+
 ### 自然語言完整 Lifecycle
 
 以下例子係日常推薦用法：使用者用 Telegram / OpenClaw 直接講低支出，agent 只負責理解意圖；真正入帳、修改、刪除、summary、settlement 都交返 deterministic CLI/domain 做驗證。
