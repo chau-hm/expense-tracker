@@ -1,0 +1,1184 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "expense-tracker",
+    "languages": [
+      "javascript",
+      "json",
+      "markdown",
+      "shell",
+      "typescript",
+      "yaml"
+    ],
+    "frameworks": [
+      "TypeScript"
+    ],
+    "description": "Expense tracker project",
+    "analyzedAt": "2026-06-03T03:29:50.108Z",
+    "gitCommitHash": "943358b2020db44930bf213255363b8c1103c3b8"
+  },
+  "nodes": [
+    {
+      "id": "service:.github/workflows/ci.yml",
+      "type": "service",
+      "name": "ci.yml",
+      "filePath": ".github/workflows/ci.yml",
+      "summary": "yaml infra entry",
+      "tags": [
+        "infra"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.understand-anything/intermediate/import-map.json",
+      "type": "config",
+      "name": "import-map.json",
+      "filePath": ".understand-anything/intermediate/import-map.json",
+      "summary": "json config entry",
+      "tags": [
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.understand-anything/intermediate/scan-input.json",
+      "type": "config",
+      "name": "scan-input.json",
+      "filePath": ".understand-anything/intermediate/scan-input.json",
+      "summary": "json config entry",
+      "tags": [
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.understand-anything/intermediate/scan-result.json",
+      "type": "config",
+      "name": "scan-result.json",
+      "filePath": ".understand-anything/intermediate/scan-result.json",
+      "summary": "json config entry",
+      "tags": [
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.understand-anything/knowledge-graph.json",
+      "type": "config",
+      "name": "knowledge-graph.json",
+      "filePath": ".understand-anything/knowledge-graph.json",
+      "summary": "json config entry",
+      "tags": [
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:AGENTS.md",
+      "type": "document",
+      "name": "AGENTS.md",
+      "filePath": "AGENTS.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/openclaw-telegram-rollout.md",
+      "type": "document",
+      "name": "openclaw-telegram-rollout.md",
+      "filePath": "docs/openclaw-telegram-rollout.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/chat-intake.md",
+      "type": "document",
+      "name": "chat-intake.md",
+      "filePath": "docs/specs/chat-intake.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/cli-core.md",
+      "type": "document",
+      "name": "cli-core.md",
+      "filePath": "docs/specs/cli-core.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/cli-items.md",
+      "type": "document",
+      "name": "cli-items.md",
+      "filePath": "docs/specs/cli-items.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/domain-settlement.md",
+      "type": "document",
+      "name": "domain-settlement.md",
+      "filePath": "docs/specs/domain-settlement.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/event-export.md",
+      "type": "document",
+      "name": "event-export.md",
+      "filePath": "docs/specs/event-export.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/event-ocr-language-preferences.md",
+      "type": "document",
+      "name": "event-ocr-language-preferences.md",
+      "filePath": "docs/specs/event-ocr-language-preferences.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/event-review.md",
+      "type": "document",
+      "name": "event-review.md",
+      "filePath": "docs/specs/event-review.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/event-summary.md",
+      "type": "document",
+      "name": "event-summary.md",
+      "filePath": "docs/specs/event-summary.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/item-management.md",
+      "type": "document",
+      "name": "item-management.md",
+      "filePath": "docs/specs/item-management.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/openclaw-wrapper.md",
+      "type": "document",
+      "name": "openclaw-wrapper.md",
+      "filePath": "docs/specs/openclaw-wrapper.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/persistence-schema.md",
+      "type": "document",
+      "name": "persistence-schema.md",
+      "filePath": "docs/specs/persistence-schema.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/receipt-ocr-fixtures.md",
+      "type": "document",
+      "name": "receipt-ocr-fixtures.md",
+      "filePath": "docs/specs/receipt-ocr-fixtures.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/specs/receipt-storage.md",
+      "type": "document",
+      "name": "receipt-storage.md",
+      "filePath": "docs/specs/receipt-storage.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:package.json",
+      "type": "config",
+      "name": "package.json",
+      "filePath": "package.json",
+      "summary": "json config entry",
+      "tags": [
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "markdown docs entry",
+      "tags": [
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/generate-knowledge-graph.mjs",
+      "type": "file",
+      "name": "generate-knowledge-graph.mjs",
+      "filePath": "scripts/generate-knowledge-graph.mjs",
+      "summary": "javascript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "pipeline:scripts/openclaw-expense-preflight.sh",
+      "type": "pipeline",
+      "name": "openclaw-expense-preflight.sh",
+      "filePath": "scripts/openclaw-expense-preflight.sh",
+      "summary": "shell script entry",
+      "tags": [
+        "script"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/adapters/ocr/apple-vision.ts",
+      "type": "file",
+      "name": "apple-vision.ts",
+      "filePath": "src/adapters/ocr/apple-vision.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/adapters/sqlite/database.ts",
+      "type": "file",
+      "name": "database.ts",
+      "filePath": "src/adapters/sqlite/database.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/adapters/sqlite/repository.ts",
+      "type": "file",
+      "name": "repository.ts",
+      "filePath": "src/adapters/sqlite/repository.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/adapters/sqlite/schema.ts",
+      "type": "file",
+      "name": "schema.ts",
+      "filePath": "src/adapters/sqlite/schema.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/adapters/storage/attachments.ts",
+      "type": "file",
+      "name": "attachments.ts",
+      "filePath": "src/adapters/storage/attachments.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/cli/index.ts",
+      "type": "file",
+      "name": "index.ts",
+      "filePath": "src/cli/index.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/cli/openclaw-wrapper.ts",
+      "type": "file",
+      "name": "openclaw-wrapper.ts",
+      "filePath": "src/cli/openclaw-wrapper.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/cli/openclaw.ts",
+      "type": "file",
+      "name": "openclaw.ts",
+      "filePath": "src/cli/openclaw.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/cli/program.ts",
+      "type": "file",
+      "name": "program.ts",
+      "filePath": "src/cli/program.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/chat-intake.ts",
+      "type": "file",
+      "name": "chat-intake.ts",
+      "filePath": "src/domain/chat-intake.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/event-ocr-context.ts",
+      "type": "file",
+      "name": "event-ocr-context.ts",
+      "filePath": "src/domain/event-ocr-context.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/export.ts",
+      "type": "file",
+      "name": "export.ts",
+      "filePath": "src/domain/export.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/items.ts",
+      "type": "file",
+      "name": "items.ts",
+      "filePath": "src/domain/items.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/receipt-ocr.ts",
+      "type": "file",
+      "name": "receipt-ocr.ts",
+      "filePath": "src/domain/receipt-ocr.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/settlement.ts",
+      "type": "file",
+      "name": "settlement.ts",
+      "filePath": "src/domain/settlement.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/summary.ts",
+      "type": "file",
+      "name": "summary.ts",
+      "filePath": "src/domain/summary.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/cli/core.test.ts",
+      "type": "file",
+      "name": "core.test.ts",
+      "filePath": "tests/cli/core.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/cli/export.test.ts",
+      "type": "file",
+      "name": "export.test.ts",
+      "filePath": "tests/cli/export.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/cli/help.test.ts",
+      "type": "file",
+      "name": "help.test.ts",
+      "filePath": "tests/cli/help.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/cli/items.test.ts",
+      "type": "file",
+      "name": "items.test.ts",
+      "filePath": "tests/cli/items.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/cli/openclaw-wrapper.test.ts",
+      "type": "file",
+      "name": "openclaw-wrapper.test.ts",
+      "filePath": "tests/cli/openclaw-wrapper.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/cli/summary.test.ts",
+      "type": "file",
+      "name": "summary.test.ts",
+      "filePath": "tests/cli/summary.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/domain/chat-intake.test.ts",
+      "type": "file",
+      "name": "chat-intake.test.ts",
+      "filePath": "tests/domain/chat-intake.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/domain/event-ocr-context.test.ts",
+      "type": "file",
+      "name": "event-ocr-context.test.ts",
+      "filePath": "tests/domain/event-ocr-context.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/domain/export.test.ts",
+      "type": "file",
+      "name": "export.test.ts",
+      "filePath": "tests/domain/export.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/domain/items.test.ts",
+      "type": "file",
+      "name": "items.test.ts",
+      "filePath": "tests/domain/items.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/domain/settlement.test.ts",
+      "type": "file",
+      "name": "settlement.test.ts",
+      "filePath": "tests/domain/settlement.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/domain/summary.test.ts",
+      "type": "file",
+      "name": "summary.test.ts",
+      "filePath": "tests/domain/summary.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:tests/fixtures/receipts/manifest.json",
+      "type": "config",
+      "name": "manifest.json",
+      "filePath": "tests/fixtures/receipts/manifest.json",
+      "summary": "json config entry",
+      "tags": [
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/persistence/schema.test.ts",
+      "type": "file",
+      "name": "schema.test.ts",
+      "filePath": "tests/persistence/schema.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/receipt/ocr.test.ts",
+      "type": "file",
+      "name": "ocr.test.ts",
+      "filePath": "tests/receipt/ocr.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/receipt/storage.test.ts",
+      "type": "file",
+      "name": "storage.test.ts",
+      "filePath": "tests/receipt/storage.test.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:tsconfig.json",
+      "type": "config",
+      "name": "tsconfig.json",
+      "filePath": "tsconfig.json",
+      "summary": "json config entry",
+      "tags": [
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:vitest.config.ts",
+      "type": "file",
+      "name": "vitest.config.ts",
+      "filePath": "vitest.config.ts",
+      "summary": "typescript code entry",
+      "tags": [
+        "code"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/adapters/ocr/apple-vision.ts",
+      "target": "file:src/domain/event-ocr-context.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/adapters/ocr/apple-vision.ts",
+      "target": "file:src/domain/receipt-ocr.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/adapters/sqlite/database.ts",
+      "target": "file:src/adapters/sqlite/schema.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/adapters/sqlite/repository.ts",
+      "target": "file:src/adapters/sqlite/schema.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/adapters/sqlite/repository.ts",
+      "target": "file:src/adapters/sqlite/database.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/adapters/sqlite/repository.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/adapters/sqlite/repository.ts",
+      "target": "file:src/domain/event-ocr-context.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/index.ts",
+      "target": "file:src/cli/program.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/openclaw-wrapper.ts",
+      "target": "file:src/domain/chat-intake.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/openclaw-wrapper.ts",
+      "target": "file:src/cli/program.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/openclaw.ts",
+      "target": "file:src/cli/openclaw-wrapper.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/adapters/ocr/apple-vision.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/adapters/sqlite/database.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/adapters/sqlite/repository.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/adapters/storage/attachments.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/domain/items.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/domain/summary.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/domain/export.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/domain/chat-intake.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/domain/event-ocr-context.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/cli/program.ts",
+      "target": "file:src/domain/receipt-ocr.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/chat-intake.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/export.ts",
+      "target": "file:src/domain/items.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/export.ts",
+      "target": "file:src/domain/summary.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/items.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/receipt-ocr.ts",
+      "target": "file:src/domain/event-ocr-context.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/summary.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/cli/core.test.ts",
+      "target": "file:src/cli/program.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/cli/export.test.ts",
+      "target": "file:src/cli/program.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/cli/help.test.ts",
+      "target": "file:src/cli/program.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/cli/items.test.ts",
+      "target": "file:src/cli/program.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/cli/openclaw-wrapper.test.ts",
+      "target": "file:src/cli/openclaw-wrapper.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/cli/summary.test.ts",
+      "target": "file:src/cli/program.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/chat-intake.test.ts",
+      "target": "file:src/domain/chat-intake.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/event-ocr-context.test.ts",
+      "target": "file:src/domain/event-ocr-context.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/export.test.ts",
+      "target": "file:src/domain/export.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/export.test.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/items.test.ts",
+      "target": "file:src/domain/items.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/items.test.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/settlement.test.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/summary.test.ts",
+      "target": "file:src/domain/summary.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/domain/summary.test.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/persistence/schema.test.ts",
+      "target": "file:src/adapters/sqlite/database.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/persistence/schema.test.ts",
+      "target": "file:src/adapters/sqlite/repository.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/persistence/schema.test.ts",
+      "target": "file:src/domain/settlement.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/receipt/ocr.test.ts",
+      "target": "file:src/cli/program.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/receipt/ocr.test.ts",
+      "target": "file:src/adapters/sqlite/database.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/receipt/ocr.test.ts",
+      "target": "file:src/adapters/sqlite/repository.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/receipt/ocr.test.ts",
+      "target": "file:src/adapters/ocr/apple-vision.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/receipt/ocr.test.ts",
+      "target": "file:src/domain/receipt-ocr.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/receipt/storage.test.ts",
+      "target": "file:src/adapters/sqlite/database.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/receipt/storage.test.ts",
+      "target": "file:src/adapters/sqlite/repository.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/receipt/storage.test.ts",
+      "target": "file:src/adapters/storage/attachments.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:core",
+      "name": "Core",
+      "description": "Core application files",
+      "nodeIds": [
+        "file:scripts/generate-knowledge-graph.mjs",
+        "file:src/cli/index.ts",
+        "file:src/cli/openclaw-wrapper.ts",
+        "file:src/cli/openclaw.ts",
+        "file:src/cli/program.ts",
+        "file:src/domain/chat-intake.ts",
+        "file:src/domain/event-ocr-context.ts",
+        "file:src/domain/export.ts",
+        "file:src/domain/items.ts",
+        "file:src/domain/receipt-ocr.ts",
+        "file:src/domain/settlement.ts",
+        "file:src/domain/summary.ts",
+        "file:vitest.config.ts"
+      ]
+    },
+    {
+      "id": "layer:external-services",
+      "name": "External Services",
+      "description": "External service integrations, SDKs, and third-party adapters",
+      "nodeIds": [
+        "file:src/adapters/ocr/apple-vision.ts",
+        "file:src/adapters/sqlite/database.ts",
+        "file:src/adapters/sqlite/repository.ts",
+        "file:src/adapters/sqlite/schema.ts",
+        "file:src/adapters/storage/attachments.ts"
+      ]
+    },
+    {
+      "id": "layer:test-layer",
+      "name": "Test Layer",
+      "description": "Test files and test utilities",
+      "nodeIds": [
+        "file:tests/cli/core.test.ts",
+        "file:tests/cli/export.test.ts",
+        "file:tests/cli/help.test.ts",
+        "file:tests/cli/items.test.ts",
+        "file:tests/cli/openclaw-wrapper.test.ts",
+        "file:tests/cli/summary.test.ts",
+        "file:tests/domain/chat-intake.test.ts",
+        "file:tests/domain/event-ocr-context.test.ts",
+        "file:tests/domain/export.test.ts",
+        "file:tests/domain/items.test.ts",
+        "file:tests/domain/settlement.test.ts",
+        "file:tests/domain/summary.test.ts",
+        "file:tests/persistence/schema.test.ts",
+        "file:tests/receipt/ocr.test.ts",
+        "file:tests/receipt/storage.test.ts"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Core",
+      "description": "Core application files. Key files: generate-knowledge-graph.mjs, index.ts, openclaw.ts, vitest.config.ts, openclaw-wrapper.ts, program.ts, export.ts, chat-intake.ts, receipt-ocr.ts, items.ts, summary.ts, event-ocr-context.ts, settlement.ts.",
+      "nodeIds": [
+        "file:scripts/generate-knowledge-graph.mjs",
+        "file:src/cli/index.ts",
+        "file:src/cli/openclaw.ts",
+        "file:vitest.config.ts",
+        "file:src/cli/openclaw-wrapper.ts",
+        "file:src/cli/program.ts",
+        "file:src/domain/export.ts",
+        "file:src/domain/chat-intake.ts",
+        "file:src/domain/receipt-ocr.ts",
+        "file:src/domain/items.ts",
+        "file:src/domain/summary.ts",
+        "file:src/domain/event-ocr-context.ts",
+        "file:src/domain/settlement.ts"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Test Layer",
+      "description": "Test files and test utilities. Key files: core.test.ts, export.test.ts, help.test.ts, items.test.ts, openclaw-wrapper.test.ts, summary.test.ts, chat-intake.test.ts, event-ocr-context.test.ts, export.test.ts, items.test.ts, settlement.test.ts, summary.test.ts, schema.test.ts, ocr.test.ts, storage.test.ts.",
+      "nodeIds": [
+        "file:tests/cli/core.test.ts",
+        "file:tests/cli/export.test.ts",
+        "file:tests/cli/help.test.ts",
+        "file:tests/cli/items.test.ts",
+        "file:tests/cli/openclaw-wrapper.test.ts",
+        "file:tests/cli/summary.test.ts",
+        "file:tests/domain/chat-intake.test.ts",
+        "file:tests/domain/event-ocr-context.test.ts",
+        "file:tests/domain/export.test.ts",
+        "file:tests/domain/items.test.ts",
+        "file:tests/domain/settlement.test.ts",
+        "file:tests/domain/summary.test.ts",
+        "file:tests/persistence/schema.test.ts",
+        "file:tests/receipt/ocr.test.ts",
+        "file:tests/receipt/storage.test.ts"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "External Services",
+      "description": "External service integrations, SDKs, and third-party adapters. Key files: apple-vision.ts, repository.ts, attachments.ts, database.ts, schema.ts.",
+      "nodeIds": [
+        "file:src/adapters/ocr/apple-vision.ts",
+        "file:src/adapters/sqlite/repository.ts",
+        "file:src/adapters/storage/attachments.ts",
+        "file:src/adapters/sqlite/database.ts",
+        "file:src/adapters/sqlite/schema.ts"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "Supporting Components",
+      "description": "Additional supporting files: ci.yml, import-map.json, scan-input.json, scan-result.json, knowledge-graph.json, AGENTS.md, openclaw-telegram-rollout.md, chat-intake.md, cli-core.md, cli-items.md, domain-settlement.md, event-export.md, event-ocr-language-preferences.md, event-review.md, event-summary.md, item-management.md, openclaw-wrapper.md, persistence-schema.md, receipt-ocr-fixtures.md, receipt-storage.md, package.json, README.md, openclaw-expense-preflight.sh, manifest.json, tsconfig.json.",
+      "nodeIds": [
+        "service:.github/workflows/ci.yml",
+        "config:.understand-anything/intermediate/import-map.json",
+        "config:.understand-anything/intermediate/scan-input.json",
+        "config:.understand-anything/intermediate/scan-result.json",
+        "config:.understand-anything/knowledge-graph.json",
+        "document:AGENTS.md",
+        "document:docs/openclaw-telegram-rollout.md",
+        "document:docs/specs/chat-intake.md",
+        "document:docs/specs/cli-core.md",
+        "document:docs/specs/cli-items.md",
+        "document:docs/specs/domain-settlement.md",
+        "document:docs/specs/event-export.md",
+        "document:docs/specs/event-ocr-language-preferences.md",
+        "document:docs/specs/event-review.md",
+        "document:docs/specs/event-summary.md",
+        "document:docs/specs/item-management.md",
+        "document:docs/specs/openclaw-wrapper.md",
+        "document:docs/specs/persistence-schema.md",
+        "document:docs/specs/receipt-ocr-fixtures.md",
+        "document:docs/specs/receipt-storage.md",
+        "config:package.json",
+        "document:README.md",
+        "pipeline:scripts/openclaw-expense-preflight.sh",
+        "config:tests/fixtures/receipts/manifest.json",
+        "config:tsconfig.json"
+      ]
+    }
+  ]
+}
