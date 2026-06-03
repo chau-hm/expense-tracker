@@ -31,7 +31,7 @@ import {
   searchItems,
   type ItemSearchFilter,
 } from "../domain/items.js";
-import { calculateSettlement, type ParticipantId } from "../domain/settlement.js";
+import { calculateSettlement, type Expense, type ParticipantId } from "../domain/settlement.js";
 import { summarizeEvent, type EventSummary } from "../domain/summary.js";
 import { exportEvent } from "../domain/export.js";
 import {
@@ -79,6 +79,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
       return 0;
     }
     const message = error instanceof Error ? error.message : String(error);
+    if (wantsJson(argv)) {
+      io.stdout(JSON.stringify(errorPayload(error)));
+      return 1;
+    }
     io.stderr(message);
     return 1;
   }
@@ -97,6 +101,41 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     writeErr: (message) => io.stderr(message.trimEnd()),
   });
   program.exitOverride();
+
+  program
+    .command("capabilities")
+    .description("Print machine-readable command capabilities for agent callers")
+    .option("--format <format>", "Output format: text or json", "text")
+    .action((options: { format: Format }) => {
+      const result = {
+        ok: true,
+        app: "expense-tracker",
+        version: "0.1.0",
+        formats: ["text", "json"],
+        guarantees: {
+          structuredJson: true,
+          typedErrors: true,
+          explicitScopeInJson: true,
+          stableIds: true,
+          dryRun: true,
+          runArtifacts: false,
+        },
+        commands: [
+          { path: "event create", mutates: true, dryRun: false, scope: ["db", "event"] },
+          { path: "expense add", mutates: true, dryRun: true, scope: ["db", "event", "currency", "participants"] },
+          { path: "chat parse", mutates: false, dryRun: false, scope: ["db", "event?"] },
+          { path: "chat correct", mutates: true, dryRun: false, scope: ["db", "event?", "itemId?"] },
+          { path: "chat item", mutates: true, dryRun: false, scope: ["db", "event?", "itemId?"] },
+          { path: "item edit", mutates: true, dryRun: true, scope: ["db", "itemId"] },
+          { path: "item delete", mutates: true, dryRun: true, scope: ["db", "itemId"] },
+          { path: "item restore", mutates: true, dryRun: true, scope: ["db", "itemId"] },
+          { path: "receipt ingest", mutates: true, dryRun: false, scope: ["db", "event", "receiptId", "attachmentsDir"] },
+          { path: "receipt confirm", mutates: true, dryRun: true, scope: ["db", "event", "receiptId", "participants"] },
+          { path: "receipt image delete", mutates: true, dryRun: false, scope: ["db", "receiptId", "attachmentsDir"] },
+        ],
+      };
+      writeOutput(io, options.format, result, "expense-tracker 0.1.0: JSON, typed errors, explicit mutation scope, and dry-run previews supported");
+    });
 
   const event = program.command("event");
 
@@ -124,7 +163,9 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         createdAt: now,
       });
 
-      writeOutput(io, options.format, record, `Created event ${record.name}`);
+      writeOutput(io, options.format, withMutationMetadata(record, eventScope(program, record.name), [
+        { action: "create_event", eventId: record.id, event: record.name },
+      ]), `Created event ${record.name}`);
     });
 
   event
@@ -220,6 +261,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .option("--beneficiary <participant>", "Beneficiary participant ID for fronted personal expenses")
     .option("--category <category>", "Expense category", DEFAULT_CATEGORY)
     .option("--description <description>", "Expense description")
+    .option("--dry-run", "Preview the mutation without writing to the database")
     .option("--format <format>", "Output format: text or json", "text")
     .action((options: {
       event: string;
@@ -232,6 +274,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       beneficiary?: string;
       category: string;
       description?: string;
+      dryRun?: boolean;
       format: Format;
     }) => {
       const db = openDb(program);
@@ -254,8 +297,22 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         updatedAt: now,
       };
       const expenseRecord: InsertExpenseInput = createExpenseRecord(expenseType, expenseBase, options);
+      if (options.dryRun) {
+        const currentExpenses = listEventExpenses(db, record.id);
+        const settlementImpact = settlementPreview(record, currentExpenses, [...currentExpenses, expenseRecord]);
+        const result = dryRunMutationResult(
+          "expense.add",
+          expenseScope(program, record.name, expenseRecord),
+          [{ action: "add_expense", itemId: expenseRecord.id, eventId: record.id }],
+          { expense: stringifyBigInts(expenseRecord), settlementImpact: stringifyBigInts(settlementImpact) },
+        );
+        writeOutput(io, options.format, result, `Dry run: would add expense ${expenseRecord.id}`);
+        return;
+      }
       insertExpense(db, expenseRecord);
-      writeOutput(io, options.format, stringifyBigInts(expenseRecord), `Added expense ${expenseRecord.id}`);
+      writeOutput(io, options.format, withMutationMetadata(stringifyBigInts(expenseRecord), expenseScope(program, record.name, expenseRecord), [
+        { action: "add_expense", itemId: expenseRecord.id, eventId: record.id },
+      ]), `Added expense ${expenseRecord.id}`);
     });
 
   const chat = program.command("chat");
@@ -353,7 +410,9 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       }
       updateExpense(db, updateResult.item);
       const result = { kind: "updated_item" as const, item: updateResult.item };
-      writeOutput(io, options.format, stringifyBigInts(result), `Updated item ${updateResult.item.id}`);
+      writeOutput(io, options.format, withMutationMetadata(stringifyBigInts(result), itemScope(program, updateResult.item.id, eventRecord.name), [
+        { action: "edit_item", itemId: updateResult.item.id },
+      ]), `Updated item ${updateResult.item.id}`);
     });
 
   chat
@@ -440,7 +499,9 @@ export function buildProgram(io: CliIo = defaultIo): Command {
 
       updateExpense(db, mutation.item);
       const result = { kind: "updated_item" as const, action: intent.action, item: mutation.item };
-      writeOutput(io, options.format, stringifyBigInts(result), `Updated item ${mutation.item.id}`);
+      writeOutput(io, options.format, withMutationMetadata(stringifyBigInts(result), itemScope(program, mutation.item.id, eventRecord?.name), [
+        { action: `${intent.action}_item`, itemId: mutation.item.id },
+      ]), `Updated item ${mutation.item.id}`);
     });
 
   chat
@@ -536,16 +597,19 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .option("--category <category>", "Category")
     .option("--description <description>", "Description")
     .option("--currency <currency>", "Currency")
+    .option("--dry-run", "Preview the mutation without writing to the database")
     .option("--format <format>", "Output format: text or json", "text")
     .action((id: string, options: {
       amountMinor?: string;
       category?: string;
       description?: string;
       currency?: string;
+      dryRun?: boolean;
       format: Format;
     }) => {
       const db = openDb(program);
-      const result = editItem(listExpenses(db), id, {
+      const items = listExpenses(db);
+      const result = editItem(items, id, {
         amountMinor: options.amountMinor ? BigInt(options.amountMinor) : undefined,
         category: options.category,
         description: options.description,
@@ -555,36 +619,68 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       if (result.kind === "not_found") {
         throw new Error(`Item not found: ${id}`);
       }
+      if (options.dryRun) {
+        const resultPayload = itemDryRunResult(program, db, "item.edit", id, result.item, items, [
+          { action: "edit_item", itemId: id },
+        ]);
+        writeOutput(io, options.format, stringifyBigInts(resultPayload), `Dry run: would update item ${id}`);
+        return;
+      }
       updateExpense(db, result.item);
-      writeOutput(io, options.format, stringifyBigInts(result.item), `Updated item ${id}`);
+      writeOutput(io, options.format, withMutationMetadata(stringifyBigInts(result.item), itemScope(program, id), [
+        { action: "edit_item", itemId: id },
+      ]), `Updated item ${id}`);
     });
 
   item
     .command("delete")
     .argument("<id>")
+    .option("--dry-run", "Preview the mutation without writing to the database")
     .option("--format <format>", "Output format: text or json", "text")
-    .action((id: string, options: { format: Format }) => {
+    .action((id: string, options: { dryRun?: boolean; format: Format }) => {
       const db = openDb(program);
-      const result = deleteItem(listExpenses(db), id, new Date().toISOString());
+      const items = listExpenses(db);
+      const result = deleteItem(items, id, new Date().toISOString());
       if (result.kind === "not_found") {
         throw new Error(`Item not found: ${id}`);
       }
+      if (options.dryRun) {
+        const resultPayload = itemDryRunResult(program, db, "item.delete", id, result.item, items, [
+          { action: "delete_item", itemId: id },
+        ]);
+        writeOutput(io, options.format, stringifyBigInts(resultPayload), `Dry run: would delete item ${id}`);
+        return;
+      }
       updateExpense(db, result.item);
-      writeOutput(io, options.format, stringifyBigInts(result.item), `Deleted item ${id}`);
+      writeOutput(io, options.format, withMutationMetadata(stringifyBigInts(result.item), itemScope(program, id), [
+        { action: "delete_item", itemId: id },
+      ]), `Deleted item ${id}`);
     });
 
   item
     .command("restore")
     .argument("<id>")
+    .option("--dry-run", "Preview the mutation without writing to the database")
     .option("--format <format>", "Output format: text or json", "text")
-    .action((id: string, options: { format: Format }) => {
+    .action((id: string, options: { dryRun?: boolean; format: Format }) => {
       const db = openDb(program);
-      const result = restoreItem(listExpenses(db), id);
+      const items = listExpenses(db);
+      const result = restoreItem(items, id);
       if (result.kind === "not_found") {
         throw new Error(`Item not found: ${id}`);
       }
-      updateExpense(db, { ...result.item, updatedAt: new Date().toISOString() });
-      writeOutput(io, options.format, stringifyBigInts(result.item), `Restored item ${id}`);
+      const restoredItem = { ...result.item, updatedAt: new Date().toISOString() };
+      if (options.dryRun) {
+        const resultPayload = itemDryRunResult(program, db, "item.restore", id, restoredItem, items, [
+          { action: "restore_item", itemId: id },
+        ]);
+        writeOutput(io, options.format, stringifyBigInts(resultPayload), `Dry run: would restore item ${id}`);
+        return;
+      }
+      updateExpense(db, restoredItem);
+      writeOutput(io, options.format, withMutationMetadata(stringifyBigInts(result.item), itemScope(program, id), [
+        { action: "restore_item", itemId: id },
+      ]), `Restored item ${id}`);
     });
 
   const receipt = program.command("receipt");
@@ -688,6 +784,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .option("--description <description>", "Override description for single-total fallback")
     .option("--items <items>", "Override items as semicolon-separated name=amount entries")
     .option("--use-total", "Confirm the extracted total as one item instead of extracted item candidates")
+    .option("--dry-run", "Preview the mutation without writing to the database")
     .option("--format <format>", "Output format: text or json", "text")
     .action((id: string, options: {
       event?: string;
@@ -700,6 +797,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
       description?: string;
       items?: string;
       useTotal?: boolean;
+      dryRun?: boolean;
       format: Format;
     }) => {
       const db = openDb(program);
@@ -746,6 +844,28 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         return createExpenseRecord(expenseType, base, options);
       });
 
+      if (options.dryRun) {
+        const currentExpenses = listEventExpenses(db, eventRecord.id);
+        const settlementImpact = settlementPreview(eventRecord, currentExpenses, [
+          ...currentExpenses,
+          ...expenses,
+        ]);
+        const result = dryRunMutationResult(
+          "receipt.confirm",
+          receiptScope(program, eventRecord.name, id),
+          [{ action: "confirm_receipt", receiptId: id, eventId: eventRecord.id, itemCount: expenses.length }],
+          {
+            receiptId: id,
+            event: eventRecord.name,
+            itemCount: expenses.length,
+            expenses: stringifyBigInts(expenses),
+            settlementImpact: stringifyBigInts(settlementImpact),
+          },
+        );
+        writeOutput(io, options.format, result, `Dry run: would confirm receipt ${id} with ${expenses.length} item(s)`);
+        return;
+      }
+
       for (const expense of expenses) {
         insertExpense(db, expense);
       }
@@ -757,7 +877,9 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         itemCount: expenses.length,
         expenses,
       };
-      writeOutput(io, options.format, stringifyBigInts(result), formatReceiptConfirmText(result));
+      writeOutput(io, options.format, withMutationMetadata(stringifyBigInts(result), receiptScope(program, eventRecord.name, id), [
+        { action: "confirm_receipt", receiptId: id, eventId: eventRecord.id, itemCount: expenses.length },
+      ]), formatReceiptConfirmText(result));
     });
 
   receipt
@@ -794,6 +916,191 @@ function openDb(program: Command) {
 
 function defaultDbPath(): string {
   return join(homedir(), ".expense-tracker", "expense-tracker.sqlite");
+}
+
+function wantsJson(argv: string[]): boolean {
+  const formatIndex = argv.findIndex((arg) => arg === "--format");
+  return formatIndex >= 0 && argv[formatIndex + 1] === "json";
+}
+
+function errorPayload(error: unknown): {
+  ok: false;
+  error: { code: string; message: string; nextAction?: string; candidates: unknown[]; retryable: boolean };
+} {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    ok: false,
+    error: {
+      code: errorCodeFromMessage(message),
+      message,
+      nextAction: nextActionFromMessage(message),
+      candidates: [],
+      retryable: false,
+    },
+  };
+}
+
+function errorCodeFromMessage(message: string): string {
+  if (/^Event not found:/.test(message)) {
+    return "EVENT_NOT_FOUND";
+  }
+  if (/^Item not found:/.test(message)) {
+    return "ITEM_NOT_FOUND";
+  }
+  if (/^Receipt not found:/.test(message)) {
+    return "RECEIPT_NOT_FOUND";
+  }
+  if (/Missing required option/.test(message) || /^Missing saved item target/.test(message)) {
+    return "MISSING_REQUIRED_INPUT";
+  }
+  if (/^Invalid /.test(message)) {
+    return "INVALID_INPUT";
+  }
+  return "COMMAND_FAILED";
+}
+
+function nextActionFromMessage(message: string): string | undefined {
+  if (/^Event not found:/.test(message)) {
+    return "Check the event name or create the event first.";
+  }
+  if (/^Item not found:/.test(message)) {
+    return "List or search items, then retry with an exact item ID.";
+  }
+  if (/^Receipt not found:/.test(message)) {
+    return "Run receipt draft/list workflow with a valid receipt ID.";
+  }
+  if (/Missing required option/.test(message) || /^Missing saved item target/.test(message)) {
+    return "Provide the missing option and retry.";
+  }
+  return undefined;
+}
+
+function withMutationMetadata<T>(
+  result: T,
+  scope: Record<string, unknown>,
+  sideEffects: Array<Record<string, unknown>>,
+  warnings: string[] = [],
+): T & { scope: Record<string, unknown>; sideEffects: Array<Record<string, unknown>>; warnings: string[] } {
+  return {
+    ...(result as object),
+    scope,
+    sideEffects,
+    warnings,
+  } as T & { scope: Record<string, unknown>; sideEffects: Array<Record<string, unknown>>; warnings: string[] };
+}
+
+function dryRunMutationResult(
+  command: string,
+  scope: Record<string, unknown>,
+  plannedOperations: Array<Record<string, unknown>>,
+  preview: Record<string, unknown>,
+  warnings: string[] = [],
+): Record<string, unknown> {
+  return {
+    ok: true,
+    dryRun: true,
+    command,
+    ...preview,
+    scope,
+    plannedOperations,
+    sideEffects: [],
+    warnings,
+  };
+}
+
+function itemDryRunResult(
+  program: Command,
+  db: ReturnType<typeof openDb>,
+  command: string,
+  itemId: string,
+  plannedItem: Expense,
+  currentItems: Expense[],
+  plannedOperations: Array<Record<string, unknown>>,
+): Record<string, unknown> {
+  const eventRecord = plannedItem.eventId ? getEventById(db, plannedItem.eventId) : undefined;
+  const eventItems = eventRecord ? currentItems.filter((item) => item.eventId === eventRecord.id) : [];
+  const plannedItems = eventItems.map((item) => item.id === itemId ? plannedItem : item);
+  const settlementImpact = eventRecord
+    ? settlementPreview(eventRecord, eventItems, plannedItems)
+    : undefined;
+
+  return dryRunMutationResult(
+    command,
+    itemScope(program, itemId, eventRecord?.name),
+    plannedOperations,
+    {
+      item: plannedItem,
+      settlementImpact,
+    },
+  );
+}
+
+function settlementPreview(
+  event: { participantIds: ParticipantId[] },
+  beforeExpenses: Expense[],
+  afterExpenses: Expense[],
+): {
+  introducedParticipants: ParticipantId[];
+  before: ReturnType<typeof calculateSettlement>;
+  after: ReturnType<typeof calculateSettlement>;
+} {
+  const beforeParticipants = uniqueParticipantIds(event.participantIds);
+  const afterParticipants = uniqueParticipantIds([
+    ...event.participantIds,
+    ...afterExpenses.flatMap((expense) => participantScope(expense)),
+  ]);
+
+  return {
+    introducedParticipants: afterParticipants.filter((participant) => !beforeParticipants.includes(participant)),
+    before: calculateSettlement({ participants: beforeParticipants, expenses: beforeExpenses }),
+    after: calculateSettlement({ participants: afterParticipants, expenses: afterExpenses }),
+  };
+}
+
+function uniqueParticipantIds(values: Array<ParticipantId | string>): ParticipantId[] {
+  return [...new Set(values.map(String))].map((participant) => participant as ParticipantId);
+}
+
+function dbScope(program: Command): Record<string, unknown> {
+  return { db: program.opts<{ db: string }>().db };
+}
+
+function eventScope(program: Command, event: string): Record<string, unknown> {
+  return { ...dbScope(program), event };
+}
+
+function expenseScope(program: Command, event: string, expense: InsertExpenseInput): Record<string, unknown> {
+  return {
+    ...eventScope(program, event),
+    itemId: expense.id,
+    currency: expense.currency,
+    participants: participantScope(expense),
+  };
+}
+
+function itemScope(program: Command, itemId: string, event?: string): Record<string, unknown> {
+  return {
+    ...dbScope(program),
+    event,
+    itemId,
+  };
+}
+
+function receiptScope(program: Command, event: string, receiptId: string): Record<string, unknown> {
+  return {
+    ...eventScope(program, event),
+    receiptId,
+  };
+}
+
+function participantScope(expense: Expense): ParticipantId[] {
+  if (expense.type === "shared") {
+    return expense.participants;
+  }
+  if (expense.type === "personal") {
+    return [expense.owner];
+  }
+  return [expense.paidBy, expense.beneficiary];
 }
 
 function parsePeople(value?: string): ParticipantId[] {

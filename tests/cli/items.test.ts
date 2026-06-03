@@ -184,13 +184,16 @@ describe("item CLI commands", () => {
       "--format",
       "json",
     ], io)).resolves.toBe(0);
-    expect(JSON.parse(output.pop() ?? "")).toEqual({
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
       kind: "updated_item",
       item: expect.objectContaining({
         id: taxiItem.id,
         amountMinor: "600",
         currency: "HKD",
       }),
+      scope: { db: dbPath, event: "Trip", itemId: taxiItem.id },
+      sideEffects: [{ action: "edit_item", itemId: taxiItem.id }],
+      warnings: [],
     });
 
     await runCli([
@@ -298,13 +301,16 @@ describe("item CLI commands", () => {
       "--format",
       "json",
     ], io)).resolves.toBe(0);
-    expect(JSON.parse(output.pop() ?? "")).toEqual({
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
       kind: "updated_item",
       action: "edit",
       item: expect.objectContaining({
         id: taxiItem.id,
         amountMinor: "600",
       }),
+      scope: { db: dbPath, event: "Trip", itemId: taxiItem.id },
+      sideEffects: [{ action: "edit_item", itemId: taxiItem.id }],
+      warnings: [],
     });
 
     await expect(runCli([
@@ -318,13 +324,16 @@ describe("item CLI commands", () => {
       "--format",
       "json",
     ], io)).resolves.toBe(0);
-    expect(JSON.parse(output.pop() ?? "")).toEqual({
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
       kind: "updated_item",
       action: "delete",
       item: expect.objectContaining({
         id: taxiItem.id,
         status: "deleted",
       }),
+      scope: { db: dbPath, event: "Trip", itemId: taxiItem.id },
+      sideEffects: [{ action: "delete_item", itemId: taxiItem.id }],
+      warnings: [],
     });
 
     await expect(runCli([
@@ -338,13 +347,16 @@ describe("item CLI commands", () => {
       "--format",
       "json",
     ], io)).resolves.toBe(0);
-    expect(JSON.parse(output.pop() ?? "")).toEqual({
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
       kind: "updated_item",
       action: "restore",
       item: expect.objectContaining({
         id: taxiItem.id,
         status: "active",
       }),
+      scope: { db: dbPath, event: "Trip", itemId: taxiItem.id },
+      sideEffects: [{ action: "restore_item", itemId: taxiItem.id }],
+      warnings: [],
     });
   });
 });

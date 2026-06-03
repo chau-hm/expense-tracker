@@ -10,6 +10,8 @@ Agent-native expense tracker，主介面預設係 OpenClaw / Telegram 自然語�
 - item delete 是 soft delete，預設不參與 settlement，但可以 restore。
 - edit/delete/restore 前應先 list/search，除非已知 exact item id。
 - 最終金額、target resolution、settlement 都由 domain/CLI 驗證。
+- Agent-first JSON contract 逐步對齊 inventory：`capabilities --format json` 可做機器可讀 discovery；JSON error 會回 `ok:false,error:{code,message,nextAction,candidates,retryable}`；常用 mutation JSON 會附 `scope`、`sideEffects`、`warnings`。
+- 高風險 mutation 可先 `--dry-run`：`expense add`、`receipt confirm`、`item edit/delete/restore` 會回 `plannedOperations`、零 `sideEffects`，並在會影響 event settlement 時附 `settlementImpact`。
 
 ## OpenClaw / Telegram 用法
 
@@ -34,6 +36,20 @@ GitHub 先負責 CI gate，不直接 deploy 到本機 OpenClaw runtime。每個 
 ```bash
 npm run build
 npm test
+```
+
+Agent callers can inspect supported command contracts:
+
+```bash
+expense-tracker capabilities --format json
+```
+
+Preview money/item mutations before writing:
+
+```bash
+expense-tracker expense add --event "Japan Trip" --amount-minor 580 --shared-by self,A --dry-run --format json
+expense-tracker receipt confirm rcp_id --items "ramen=90.00;tea=12.00" --shared-by A,B --dry-run --format json
+expense-tracker item delete exp_id --dry-run --format json
 ```
 
 OpenClaw runtime preflight 需要本機已安裝 `openclaw`、`expense-tracker`、`expense-openclaw`，所以唔放入 GitHub hosted runner：
@@ -199,6 +215,8 @@ expense-tracker expense add \
 /expense restore exp_macau_weekend_coffee_xxx
 ```
 
+需要 review target 或 settlement 影響時，先加 `--dry-run --format json`。Dry-run 不會改 DB，會輸出 `plannedOperations`、`sideEffects:[]`，有 event context 時會附 `settlementImpact.before/after`。
+
 安全規則：
 
 - exact `exp_...` item id 可以直接 target。
@@ -264,6 +282,9 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
 
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
   /expense receipt confirm rcp_id --items "minchi=90.00;tea=12.00" --paid-by 阿文 --shared-by 阿文,Ken,Mary
+
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
+  /expense receipt confirm rcp_id --items "minchi=90.00;tea=12.00" --paid-by 阿文 --shared-by 阿文,Ken,Mary --dry-run --format json
 
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite \
   /expense receipt confirm rcp_id --use-total --description "dinner receipt" --paid-by 阿文 --shared-by 阿文,Ken,Mary
@@ -337,6 +358,7 @@ expense-tracker expense add --event "Daily Expenses" --amount-minor 580
 expense-tracker item list --event "Japan Trip"
 expense-tracker item search --event "Japan Trip" --text hotel
 expense-tracker item edit exp_id --amount-minor 12300 --description "updated"
+expense-tracker item edit exp_id --amount-minor 12300 --dry-run --format json
 expense-tracker item delete exp_id
 expense-tracker item restore exp_id
 ```

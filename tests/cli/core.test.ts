@@ -30,7 +30,7 @@ describe("core CLI commands", () => {
       "json",
     ], { stdout: output.push.bind(output), stderr: errors.push.bind(errors) })).resolves.toBe(0);
 
-    expect(JSON.parse(output.pop() ?? "")).toEqual({
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
       id: expect.stringMatching(/^evt_/),
       name: "Japan Trip",
       defaultCurrency: "HKD",
@@ -39,6 +39,9 @@ describe("core CLI commands", () => {
       ocrLanguageSource: "inferred",
       status: "active",
       participantIds: ["self", "A", "B"],
+      scope: { db: dbPath, event: "Japan Trip" },
+      sideEffects: [expect.objectContaining({ action: "create_event" })],
+      warnings: [],
     });
 
     await expect(runCli([
