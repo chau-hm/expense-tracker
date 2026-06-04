@@ -11,7 +11,7 @@ Agent-native expense tracker，主介面預設係 OpenClaw / Telegram 自然語�
 - edit/delete/restore 前應先 list/search，除非已知 exact item id。
 - 最終金額、target resolution、settlement 都由 domain/CLI 驗證。
 - Agent-first JSON contract 逐步對齊 inventory：`capabilities --format json` 可做機器可讀 discovery；JSON error 會回 `ok:false,error:{code,message,nextAction,candidates,retryable}`；常用 mutation JSON 會附 `scope`、`sideEffects`、`warnings`。
-- 高風險 mutation 可先 `--dry-run`：`expense add`、`receipt confirm`、`item edit/delete/restore` 會回 `plannedOperations`、零 `sideEffects`，並在會影響 event settlement 時附 `settlementImpact`。
+- Mutation 可先 `--dry-run`：`event create`、`expense add`、`receipt confirm`、`item edit/delete/restore` 會回 `plannedOperations`、零 `sideEffects`，並在會影響 event settlement 時附 `settlementImpact`。`event create` preview 連 SQLite DB file 都不會建立。
 - 需要 durable provenance 時可加 global `--artifact-dir <dir>`；structured mutation success、dry-run、typed JSON error 會寫 compact run receipt，JSON 回應會附 `artifactPath`。
 
 ## OpenClaw / Telegram 用法
@@ -48,6 +48,7 @@ expense-tracker capabilities --format json
 Preview money/item mutations before writing:
 
 ```bash
+expense-tracker event create "Japan Trip" --currencies HKD,JPY --people self,A --dry-run --format json
 expense-tracker expense add --event "Japan Trip" --amount-minor 580 --shared-by self,A --dry-run --format json
 expense-tracker receipt confirm rcp_id --items "ramen=90.00;tea=12.00" --shared-by A,B --dry-run --format json
 expense-tracker item delete exp_id --dry-run --format json
@@ -217,7 +218,7 @@ expense-tracker expense add \
 /expense restore exp_macau_weekend_coffee_xxx
 ```
 
-需要 review target 或 settlement 影響時，先加 `--dry-run --format json`。Dry-run 不會改 DB，會輸出 `plannedOperations`、`sideEffects:[]`，有 event context 時會附 `settlementImpact.before/after`。
+需要 preview 新 event、review target 或 settlement 影響時，先加 `--dry-run --format json`。Dry-run 不會改 DB，會輸出 `plannedOperations`、`sideEffects:[]`；event create 會預覽 participants/currencies/OCR languages，有 settlement context 時會附 `settlementImpact.before/after`。
 
 安全規則：
 
@@ -326,6 +327,7 @@ expense-openclaw
 
 ```bash
 expense-tracker event create "Japan Trip" --currency JPY --people Alice,Bob --format json
+expense-tracker event create "Japan Trip" --currency HKD --currencies HKD,JPY --people Alice,Bob --dry-run --format json
 expense-tracker event list
 expense-tracker event detail "Japan Trip"
 expense-tracker event summary "Japan Trip"

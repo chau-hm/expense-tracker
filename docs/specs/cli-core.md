@@ -17,6 +17,9 @@ This slice implements the first useful command path:
 - `event create` stores a default currency; when omitted it defaults to `HKD`.
 - `event create` should support an ordered supported currency list for receipt/OCR context; when omitted it defaults to the default currency.
 - `event create` should support ordered OCR language preferences; when omitted they are inferred from supported currencies.
+- `event create --dry-run --format json` previews the normalized event, participants, currencies, and OCR languages without creating or opening the SQLite database.
+- Event-create dry-run returns the standard mutation preview contract: `plannedOperations`, `sideEffects:[]`, `warnings`, and explicit DB/event scope.
+- Event-create dry-run with global `--artifact-dir` writes only the run receipt; it must not create or modify the expense database.
 - `expense add` can add shared, personal, and fronted personal expenses to an event.
 - `expense add` defaults omitted `--paid-by` and `--shared-by` to `self`.
 - `expense add` defaults omitted `--currency` to the event default currency.

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -108,6 +108,59 @@ describe("core CLI commands", () => {
       ocrLanguagePreferences: ["jp", "zh"],
       ocrLanguageSource: "manual",
     });
+  });
+
+  it("previews normalized event creation without creating the database", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+
+    await expect(runCli([
+      "--db",
+      dbPath,
+      "event",
+      "create",
+      "Japan Trip",
+      "--people",
+      "self,A,A,B",
+      "--currency",
+      "hkd",
+      "--currencies",
+      "JPY,HKD",
+      "--ocr-languages",
+      "jp,zh",
+      "--dry-run",
+      "--format",
+      "json",
+    ], { stdout: output.push.bind(output), stderr: () => undefined })).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "")).toMatchObject({
+      ok: true,
+      dryRun: true,
+      command: "event.create",
+      event: {
+        id: expect.stringMatching(/^evt_/),
+        name: "Japan Trip",
+        defaultCurrency: "HKD",
+        supportedCurrencies: ["HKD", "JPY"],
+        ocrLanguagePreferences: ["jp", "zh"],
+        ocrLanguageSource: "manual",
+        status: "active",
+        participantIds: ["self", "A", "B"],
+      },
+      scope: { db: dbPath, event: "Japan Trip" },
+      plannedOperations: [
+        expect.objectContaining({
+          action: "create_event",
+          event: "Japan Trip",
+          participants: ["self", "A", "B"],
+          currencies: ["HKD", "JPY"],
+          ocrLanguages: ["jp", "zh"],
+        }),
+      ],
+      sideEffects: [],
+      warnings: [],
+    });
+    expect(existsSync(dbPath)).toBe(false);
   });
 
   it("lists events and shows event detail for review", async () => {

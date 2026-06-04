@@ -25,5 +25,6 @@ The stored `result` excludes `artifactPath` so the receipt does not recursively 
 
 - A successful JSON mutation with `--artifact-dir` writes a receipt and returns its path.
 - A JSON dry-run with `--artifact-dir` writes a receipt and returns its path without changing the database.
+- `event create --dry-run` with `--artifact-dir` may create the artifact directory and receipt, but must not create the SQLite database.
 - A typed JSON error with `--artifact-dir` writes a receipt and returns its path.
 - Read-only JSON commands with `--artifact-dir` do not create artifacts.

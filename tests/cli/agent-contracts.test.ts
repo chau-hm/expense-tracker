@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -34,9 +34,36 @@ describe("agent-first CLI contracts", () => {
         stableIds: true,
       },
       commands: expect.arrayContaining([
+        expect.objectContaining({ path: "event create", mutates: true, dryRun: true }),
         expect.objectContaining({ path: "expense add", mutates: true }),
         expect.objectContaining({ path: "receipt confirm", mutates: true }),
       ]),
+    });
+  });
+
+  it("writes an event-create dry-run artifact without writing the database", async () => {
+    const dbPath = tempDbPath();
+    const artifactDir = join(mkdtempSync(join(tmpdir(), "expense-event-artifacts-")), "runs");
+    tempDirs.push(dirname(artifactDir));
+    const output: string[] = [];
+
+    await expect(runCli([
+      "--db", dbPath, "--artifact-dir", artifactDir,
+      "event", "create", "Trip", "--people", "A,B", "--dry-run", "--format", "json",
+    ], { stdout: output.push.bind(output), stderr: () => undefined })).resolves.toBe(0);
+
+    const result = JSON.parse(output.pop() ?? "{}");
+    expect(result).toMatchObject({
+      ok: true,
+      dryRun: true,
+      command: "event.create",
+      artifactPath: expect.stringContaining(artifactDir),
+      event: { name: "Trip", participantIds: ["self", "A", "B"] },
+    });
+    expect(existsSync(dbPath)).toBe(false);
+    expect(readdirSync(artifactDir)).toHaveLength(1);
+    expect(JSON.parse(readFileSync(result.artifactPath, "utf8"))).toMatchObject({
+      result: { ok: true, dryRun: true, command: "event.create" },
     });
   });
 

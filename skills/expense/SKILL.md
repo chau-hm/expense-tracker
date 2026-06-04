@@ -25,13 +25,14 @@ For receipt images from Telegram/OpenClaw media, use the helper:
 4. Do not save ambiguous money movement. Ask one concise clarification question if payer, amount, currency, participants, or event is unclear.
 5. Receipt OCR is available through `receipt ingest`, followed by `receipt draft` and `receipt confirm`. If the user sends a receipt image, resolve the local media path or pass `media://inbound/<file>` to `scripts/ingest-receipt-image.sh`, ingest it into the target event, show the draft, then ask for confirmation or edited item overrides before saving expenses.
 6. `capabilities --format json` is available for machine-readable discovery. JSON errors are typed, and common mutation JSON includes `scope`, `sideEffects`, and `warnings`.
-7. Use `--dry-run --format json` before risky money/item mutations when the user is asking for a correction, target is not freshly verified, or settlement impact matters. Dry-run is available for `expense add`, `receipt confirm`, and `item edit/delete/restore`; it writes nothing and returns `plannedOperations`, `sideEffects:[]`, and settlement impact when applicable.
+7. Use `--dry-run --format json` before creating an event or risky money/item mutations when the user wants a preview, is asking for a correction, the target is not freshly verified, or settlement impact matters. Dry-run is available for `event create`, `expense add`, `receipt confirm`, and `item edit/delete/restore`; it writes nothing and returns `plannedOperations`, `sideEffects:[]`, and settlement impact when applicable. Event-create dry-run previews participants, currencies, and OCR languages without creating the SQLite DB.
 8. Use global `--artifact-dir <dir>` with `--format json` when durable provenance matters. Mutation success, mutation dry-run, and typed errors write compact run receipts and return `artifactPath`.
 
 ## Common Commands
 
 ```bash
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite event create "Japan Trip" --people A,B,C
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite event create "Japan Trip" --currencies HKD,JPY --people A,B,C --dry-run --format json
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite capabilities --format json
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite expense add --event "Japan Trip" --paid-by A --currency HKD --amount-minor 240000 --shared-by A,B,C --category flight --description "tickets"
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite expense add --event "Japan Trip" --paid-by A --currency HKD --amount-minor 240000 --shared-by A,B,C --dry-run --format json

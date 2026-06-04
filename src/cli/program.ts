@@ -5,6 +5,7 @@ import { Command, CommanderError } from "commander";
 import { AppleVisionOcrProvider } from "../adapters/ocr/apple-vision.js";
 import { createDatabase } from "../adapters/sqlite/database.js";
 import {
+  buildEventRecord,
   createEvent,
   deleteReceiptImage,
   findEventByName,
@@ -124,7 +125,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
           runArtifacts: true,
         },
         commands: [
-          { path: "event create", mutates: true, dryRun: false, scope: ["db", "event"] },
+          { path: "event create", mutates: true, dryRun: true, scope: ["db", "event"] },
           { path: "expense add", mutates: true, dryRun: true, scope: ["db", "event", "currency", "participants"] },
           { path: "chat parse", mutates: false, dryRun: false, scope: ["db", "event?"] },
           { path: "chat correct", mutates: true, dryRun: false, scope: ["db", "event?", "itemId?"] },
@@ -149,11 +150,11 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .option("--currency <currency>", "Default event currency", DEFAULT_CURRENCY)
     .option("--currencies <currencies>", "Comma-separated supported currencies for the event")
     .option("--ocr-languages <languages>", "Comma-separated OCR language preferences: zh,en,jp")
+    .option("--dry-run", "Preview the mutation without writing to the database")
     .option("--format <format>", "Output format: text or json", "text")
-    .action((name: string, options: { people?: string; currency: string; currencies?: string; ocrLanguages?: string; format: Format }) => {
-      const db = openDb(program);
+    .action((name: string, options: { people?: string; currency: string; currencies?: string; ocrLanguages?: string; dryRun?: boolean; format: Format }) => {
       const now = new Date().toISOString();
-      const record = createEvent(db, {
+      const input = {
         id: createId("evt", name),
         name,
         defaultCurrency: options.currency.toUpperCase(),
@@ -164,10 +165,32 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         defaultParticipantId: DEFAULT_PARTICIPANT_ID,
         participants: parsePeople(options.people),
         createdAt: now,
-      });
+      };
+      const preview = buildEventRecord(input);
+      const plannedOperation = {
+        action: "create_event",
+        eventId: preview.id,
+        event: preview.name,
+        participants: preview.participantIds,
+        currencies: preview.supportedCurrencies,
+        ocrLanguages: preview.ocrLanguagePreferences,
+      };
+
+      if (options.dryRun) {
+        writeOutput(io, options.format, dryRunMutationResult(
+          "event.create",
+          eventScope(program, preview.name),
+          [plannedOperation],
+          { event: preview },
+        ), `Dry run: would create event ${preview.name}`);
+        return;
+      }
+
+      const db = openDb(program);
+      const record = createEvent(db, input);
 
       writeOutput(io, options.format, withMutationMetadata(record, eventScope(program, record.name), [
-        { action: "create_event", eventId: record.id, event: record.name },
+        plannedOperation,
       ]), `Created event ${record.name}`);
     });
 

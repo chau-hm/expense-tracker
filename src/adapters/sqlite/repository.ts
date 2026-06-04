@@ -66,6 +66,31 @@ export type ReceiptRecord = {
 };
 
 export function createEvent(db: ExpenseTrackerDb, input: CreateEventInput): EventRecord {
+  const record = buildEventRecord(input);
+
+  db.insert(events).values({
+    id: record.id,
+    name: record.name,
+    defaultCurrency: record.defaultCurrency,
+    supportedCurrenciesJson: JSON.stringify(record.supportedCurrencies),
+    ocrLanguagePreferencesJson: JSON.stringify(record.ocrLanguagePreferences),
+    ocrLanguageSource: record.ocrLanguageSource,
+    status: record.status,
+    createdAt: input.createdAt,
+  }).run();
+
+  for (const participantId of record.participantIds) {
+    ensureParticipant(db, participantId, input.createdAt);
+    db.insert(eventParticipants).values({
+      eventId: input.id,
+      participantId,
+    }).run();
+  }
+
+  return record;
+}
+
+export function buildEventRecord(input: CreateEventInput): EventRecord {
   const participantIds = uniqueParticipants([
     input.defaultParticipantId,
     ...input.participants,
@@ -73,25 +98,6 @@ export function createEvent(db: ExpenseTrackerDb, input: CreateEventInput): Even
   const supportedCurrencies = normalizeCurrencyList(input.supportedCurrencies ?? [], input.defaultCurrency);
   const ocrLanguagePreferences = input.ocrLanguagePreferences ?? inferOcrLanguagePreferences(supportedCurrencies);
   const ocrLanguageSource: OcrLanguageSource = input.ocrLanguagePreferences ? "manual" : "inferred";
-
-  db.insert(events).values({
-    id: input.id,
-    name: input.name,
-    defaultCurrency: input.defaultCurrency,
-    supportedCurrenciesJson: JSON.stringify(supportedCurrencies),
-    ocrLanguagePreferencesJson: JSON.stringify(ocrLanguagePreferences),
-    ocrLanguageSource,
-    status: "active",
-    createdAt: input.createdAt,
-  }).run();
-
-  for (const participantId of participantIds) {
-    ensureParticipant(db, participantId, input.createdAt);
-    db.insert(eventParticipants).values({
-      eventId: input.id,
-      participantId,
-    }).run();
-  }
 
   return {
     id: input.id,
