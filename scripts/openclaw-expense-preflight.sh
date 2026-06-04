@@ -4,6 +4,7 @@ set -euo pipefail
 DB_DIR="$(mktemp -d "${TMPDIR:-/tmp}/expense-openclaw-preflight.XXXXXX")"
 trap 'rm -rf "$DB_DIR"' EXIT
 DB_PATH="$DB_DIR/preflight.sqlite"
+ARTIFACT_DIR="$DB_DIR/run-artifacts"
 OPENCLAW_HOME="${OPENCLAW_HOME:-/Users/openclaw}"
 
 require_command() {
@@ -44,6 +45,11 @@ check_contains "$CREATE_OUTPUT" '"participantIds":["self","A","B"]' "participant
 
 ADD_OUTPUT="$(expense-openclaw --db "$DB_PATH" /expense expense add --event "Preflight" --paid-by A --currency HKD --amount-minor 12345 --shared-by A,B --category smoke --description "preflight" --format json)"
 check_contains "$ADD_OUTPUT" '"description":"preflight"' "expense creation through /expense wrapper"
+
+DRY_RUN_OUTPUT="$(expense-openclaw --db "$DB_PATH" --artifact-dir "$ARTIFACT_DIR" /expense item delete missing --dry-run --format json 2>/dev/null || true)"
+check_contains "$DRY_RUN_OUTPUT" '"code":"ITEM_NOT_FOUND"' "typed error through /expense wrapper"
+check_contains "$DRY_RUN_OUTPUT" '"artifactPath":' "run artifact path through /expense wrapper"
+test "$(find "$ARTIFACT_DIR" -type f -name 'expense-run-*.json' | wc -l | tr -d ' ')" -eq 1
 
 SUMMARY_OUTPUT="$(expense-openclaw --db "$DB_PATH" /expense event summary "Preflight" --format json)"
 check_contains "$SUMMARY_OUTPUT" '"event":{"id":"evt_preflight","name":"Preflight"' "event summary through /expense wrapper"

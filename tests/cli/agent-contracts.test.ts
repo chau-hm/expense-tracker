@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDatabase } from "../../src/adapters/sqlite/database.js";
 import { createEvent, insertReceipt } from "../../src/adapters/sqlite/repository.js";
@@ -68,6 +68,55 @@ describe("agent-first CLI contracts", () => {
         retryable: false,
       },
     });
+  });
+
+  it("writes run artifacts for mutation success, dry-run, and typed errors", async () => {
+    const dbPath = tempDbPath();
+    const artifactDir = join(mkdtempSync(join(tmpdir(), "expense-artifacts-")), "runs");
+    tempDirs.push(dirname(artifactDir));
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "--artifact-dir", artifactDir, "event", "create", "Trip", "--format", "json"], io);
+    const success = JSON.parse(output.pop() ?? "{}");
+    expect(success).toMatchObject({ name: "Trip", artifactPath: expect.stringContaining(artifactDir) });
+
+    await runCli([
+      "--db", dbPath, "--artifact-dir", artifactDir, "expense", "add",
+      "--event", "Trip", "--amount-minor", "580", "--dry-run", "--format", "json",
+    ], io);
+    const dryRun = JSON.parse(output.pop() ?? "{}");
+    expect(dryRun).toMatchObject({ ok: true, dryRun: true, artifactPath: expect.stringContaining(artifactDir) });
+
+    await expect(runCli([
+      "--db", dbPath, "--artifact-dir", artifactDir, "item", "delete", "missing", "--format", "json",
+    ], io)).resolves.toBe(1);
+    const failure = JSON.parse(output.pop() ?? "{}");
+    expect(failure).toMatchObject({ ok: false, error: { code: "ITEM_NOT_FOUND" }, artifactPath: expect.stringContaining(artifactDir) });
+
+    expect(readdirSync(artifactDir)).toHaveLength(3);
+    const artifact = JSON.parse(readFileSync(failure.artifactPath, "utf8"));
+    expect(artifact).toMatchObject({
+      app: "expense-tracker",
+      version: "0.1.0",
+      createdAt: expect.any(String),
+      result: { ok: false, error: { code: "ITEM_NOT_FOUND" } },
+    });
+    expect(artifact.result.artifactPath).toBeUndefined();
+  });
+
+  it("does not write run artifacts for read-only JSON results", async () => {
+    const dbPath = tempDbPath();
+    const artifactDir = join(mkdtempSync(join(tmpdir(), "expense-read-artifacts-")), "runs");
+    tempDirs.push(dirname(artifactDir));
+    const output: string[] = [];
+
+    await expect(runCli([
+      "--db", dbPath, "--artifact-dir", artifactDir, "event", "list", "--format", "json",
+    ], { stdout: output.push.bind(output), stderr: () => undefined })).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "[]")).toEqual([]);
+    expect(() => readdirSync(artifactDir)).toThrow();
   });
 
   it("adds scope and side-effect metadata to expense add JSON", async () => {

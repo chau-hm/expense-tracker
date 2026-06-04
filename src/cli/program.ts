@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { Command, CommanderError } from "commander";
@@ -70,7 +70,9 @@ const DEFAULT_ATTACHMENTS_DIR = join(homedir(), ".expense-tracker", "attachments
 type ExpenseTypeOption = "shared" | "personal" | "fronted-personal" | "fronted_personal";
 
 export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<number> {
-  const program = buildProgram(io);
+  const artifactDir = optionValue(argv, "--artifact-dir");
+  const artifactIo = artifactDir ? withRunArtifacts(io, artifactDir) : io;
+  const program = buildProgram(artifactIo);
   try {
     await program.parseAsync(argv, { from: "user" });
     return 0;
@@ -80,7 +82,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
     }
     const message = error instanceof Error ? error.message : String(error);
     if (wantsJson(argv)) {
-      io.stdout(JSON.stringify(errorPayload(error)));
+      artifactIo.stdout(JSON.stringify(errorPayload(error)));
       return 1;
     }
     io.stderr(message);
@@ -95,7 +97,8 @@ export function buildProgram(io: CliIo = defaultIo): Command {
     .name("expense-tracker")
     .description("CLI-first agent-native expense tracker")
     .version("0.1.0")
-    .option("--db <path>", "SQLite database path", defaultDbPath());
+    .option("--db <path>", "SQLite database path", defaultDbPath())
+    .option("--artifact-dir <dir>", "Write compact JSON run receipts for mutations and typed errors");
   program.configureOutput({
     writeOut: (message) => io.stdout(message.trimEnd()),
     writeErr: (message) => io.stderr(message.trimEnd()),
@@ -118,7 +121,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
           explicitScopeInJson: true,
           stableIds: true,
           dryRun: true,
-          runArtifacts: false,
+          runArtifacts: true,
         },
         commands: [
           { path: "event create", mutates: true, dryRun: false, scope: ["db", "event"] },
@@ -134,7 +137,7 @@ export function buildProgram(io: CliIo = defaultIo): Command {
           { path: "receipt image delete", mutates: true, dryRun: false, scope: ["db", "receiptId", "attachmentsDir"] },
         ],
       };
-      writeOutput(io, options.format, result, "expense-tracker 0.1.0: JSON, typed errors, explicit mutation scope, and dry-run previews supported");
+      writeOutput(io, options.format, result, "expense-tracker 0.1.0: JSON, typed errors, explicit mutation scope, dry-run previews, and run artifacts supported");
     });
 
   const event = program.command("event");
@@ -921,6 +924,51 @@ function defaultDbPath(): string {
 function wantsJson(argv: string[]): boolean {
   const formatIndex = argv.findIndex((arg) => arg === "--format");
   return formatIndex >= 0 && argv[formatIndex + 1] === "json";
+}
+
+function optionValue(argv: string[], option: string): string | undefined {
+  const index = argv.findIndex((arg) => arg === option);
+  return index >= 0 ? argv[index + 1] : undefined;
+}
+
+function withRunArtifacts(io: CliIo, artifactDir: string): CliIo {
+  return {
+    ...io,
+    stdout: (message) => {
+      const result = parseArtifactEligibleResult(message);
+      if (!result) {
+        io.stdout(message);
+        return;
+      }
+      const artifactPath = writeRunArtifact(artifactDir, result);
+      io.stdout(JSON.stringify({ ...result, artifactPath }));
+    },
+  };
+}
+
+function parseArtifactEligibleResult(message: string): Record<string, unknown> | undefined {
+  try {
+    const result = JSON.parse(message) as Record<string, unknown>;
+    if (result.ok === false || result.dryRun === true || Array.isArray(result.sideEffects)) {
+      return result;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function writeRunArtifact(artifactDir: string, result: Record<string, unknown>): string {
+  mkdirSync(artifactDir, { recursive: true });
+  const now = new Date().toISOString();
+  const artifactPath = join(artifactDir, `expense-run-${now.replace(/[:.]/g, "-")}.json`);
+  writeFileSync(artifactPath, `${JSON.stringify({
+    app: "expense-tracker",
+    version: "0.1.0",
+    createdAt: now,
+    result,
+  }, null, 2)}\n`, "utf8");
+  return artifactPath;
 }
 
 function errorPayload(error: unknown): {

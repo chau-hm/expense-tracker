@@ -12,6 +12,7 @@ Agent-native expense tracker，主介面預設係 OpenClaw / Telegram 自然語�
 - 最終金額、target resolution、settlement 都由 domain/CLI 驗證。
 - Agent-first JSON contract 逐步對齊 inventory：`capabilities --format json` 可做機器可讀 discovery；JSON error 會回 `ok:false,error:{code,message,nextAction,candidates,retryable}`；常用 mutation JSON 會附 `scope`、`sideEffects`、`warnings`。
 - 高風險 mutation 可先 `--dry-run`：`expense add`、`receipt confirm`、`item edit/delete/restore` 會回 `plannedOperations`、零 `sideEffects`，並在會影響 event settlement 時附 `settlementImpact`。
+- 需要 durable provenance 時可加 global `--artifact-dir <dir>`；structured mutation success、dry-run、typed JSON error 會寫 compact run receipt，JSON 回應會附 `artifactPath`。
 
 ## OpenClaw / Telegram 用法
 
@@ -50,6 +51,7 @@ Preview money/item mutations before writing:
 expense-tracker expense add --event "Japan Trip" --amount-minor 580 --shared-by self,A --dry-run --format json
 expense-tracker receipt confirm rcp_id --items "ramen=90.00;tea=12.00" --shared-by A,B --dry-run --format json
 expense-tracker item delete exp_id --dry-run --format json
+expense-tracker --artifact-dir /tmp/expense-runs item delete exp_id --dry-run --format json
 ```
 
 OpenClaw runtime preflight 需要本機已安裝 `openclaw`、`expense-tracker`、`expense-openclaw`，所以唔放入 GitHub hosted runner：

@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runOpenClawCommand } from "../../src/cli/openclaw-wrapper.js";
 
@@ -13,6 +13,25 @@ afterEach(() => {
 });
 
 describe("OpenClaw wrapper", () => {
+  it("preserves artifact-dir while routing slash commands", async () => {
+    const dbPath = tempDbPath();
+    const artifactDir = join(dirname(dbPath), "artifacts");
+    const output: string[] = [];
+
+    await expect(runOpenClawCommand([
+      "--db", dbPath,
+      "--artifact-dir", artifactDir,
+      "/expense", "item", "delete", "missing",
+      "--format", "json",
+    ], { stdout: output.push.bind(output), stderr: () => undefined })).resolves.toBe(1);
+
+    expect(JSON.parse(output.pop() ?? "{}")).toMatchObject({
+      ok: false,
+      error: { code: "ITEM_NOT_FOUND" },
+      artifactPath: expect.stringContaining(artifactDir),
+    });
+  });
+
   it("strips a slash command prefix and forwards to the core CLI", async () => {
     const dbPath = tempDbPath();
     const output: string[] = [];

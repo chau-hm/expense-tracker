@@ -26,6 +26,7 @@ For receipt images from Telegram/OpenClaw media, use the helper:
 5. Receipt OCR is available through `receipt ingest`, followed by `receipt draft` and `receipt confirm`. If the user sends a receipt image, resolve the local media path or pass `media://inbound/<file>` to `scripts/ingest-receipt-image.sh`, ingest it into the target event, show the draft, then ask for confirmation or edited item overrides before saving expenses.
 6. `capabilities --format json` is available for machine-readable discovery. JSON errors are typed, and common mutation JSON includes `scope`, `sideEffects`, and `warnings`.
 7. Use `--dry-run --format json` before risky money/item mutations when the user is asking for a correction, target is not freshly verified, or settlement impact matters. Dry-run is available for `expense add`, `receipt confirm`, and `item edit/delete/restore`; it writes nothing and returns `plannedOperations`, `sideEffects:[]`, and settlement impact when applicable.
+8. Use global `--artifact-dir <dir>` with `--format json` when durable provenance matters. Mutation success, mutation dry-run, and typed errors write compact run receipts and return `artifactPath`.
 
 ## Common Commands
 
@@ -37,6 +38,7 @@ expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite ex
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite item search --event "Japan Trip" --text hotel
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite item edit exp_id --amount-minor 12300
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite item delete exp_id --dry-run --format json
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite --artifact-dir /tmp/expense-runs item delete exp_id --dry-run --format json
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite item delete exp_id
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite receipt ingest /path/to/receipt.jpg --event "Japan Trip"
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite receipt draft rcp_id

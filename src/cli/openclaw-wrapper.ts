@@ -42,11 +42,11 @@ function stripCommandPrefix(argv: string[]): string[] {
 function findFirstCommandIndex(argv: string[]): number {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--db") {
+    if (arg === "--db" || arg === "--artifact-dir") {
       index += 1;
       continue;
     }
-    if (arg.startsWith("--db=") || arg.startsWith("-")) {
+    if (arg.startsWith("--db=") || arg.startsWith("--artifact-dir=") || arg.startsWith("-")) {
       continue;
     }
     return index;
