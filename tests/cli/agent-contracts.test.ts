@@ -29,6 +29,7 @@ describe("agent-first CLI contracts", () => {
       app: "expense-tracker",
       guarantees: {
         structuredJson: true,
+        richMessages: true,
         typedErrors: true,
         explicitScopeInJson: true,
         stableIds: true,
@@ -38,6 +39,43 @@ describe("agent-first CLI contracts", () => {
         expect.objectContaining({ path: "expense add", mutates: true }),
         expect.objectContaining({ path: "receipt confirm", mutates: true }),
       ]),
+    });
+  });
+
+  it("returns Telegram rich-message payloads with rich-json output", async () => {
+    const dbPath = tempDbPath();
+    const output: string[] = [];
+    const io = { stdout: output.push.bind(output), stderr: () => undefined };
+
+    await runCli(["--db", dbPath, "event", "create", "Trip"], io);
+    output.length = 0;
+
+    await expect(runCli([
+      "--db", dbPath, "event", "summary", "Trip", "--format", "rich-json",
+    ], io)).resolves.toBe(0);
+
+    expect(JSON.parse(output.pop() ?? "{}")).toMatchObject({
+      ok: true,
+      data: {
+        event: expect.objectContaining({ name: "Trip" }),
+        activeItemCount: 0,
+      },
+      richMessage: {
+        schemaVersion: 1,
+        channel: "telegram",
+        title: "Expense",
+        fallbackText: expect.stringContaining("Trip"),
+        presentation: {
+          title: "Expense",
+          tone: "info",
+          blocks: expect.arrayContaining([
+            expect.objectContaining({ type: "text" }),
+          ]),
+        },
+        blocks: expect.arrayContaining([
+          expect.objectContaining({ type: "section" }),
+        ]),
+      },
     });
   });
 

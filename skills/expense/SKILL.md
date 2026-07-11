@@ -25,8 +25,16 @@ For receipt images from Telegram/OpenClaw media, use the helper:
 4. Do not save ambiguous money movement. Ask one concise clarification question if payer, amount, currency, participants, or event is unclear.
 5. Receipt OCR is available through `receipt ingest`, followed by `receipt draft` and `receipt confirm`. If the user sends a receipt image, resolve the local media path or pass `media://inbound/<file>` to `scripts/ingest-receipt-image.sh`, ingest it into the target event, show the draft, then ask for confirmation or edited item overrides before saving expenses.
 6. `capabilities --format json` is available for machine-readable discovery. JSON errors are typed, and common mutation JSON includes `scope`, `sideEffects`, and `warnings`.
-7. Use `--dry-run --format json` before creating an event or risky money/item mutations when the user wants a preview, is asking for a correction, the target is not freshly verified, or settlement impact matters. Dry-run is available for `event create`, `expense add`, `receipt confirm`, and `item edit/delete/restore`; it writes nothing and returns `plannedOperations`, `sideEffects:[]`, and settlement impact when applicable. Event-create dry-run previews participants, currencies, and OCR languages without creating the SQLite DB.
-8. Use global `--artifact-dir <dir>` with `--format json` when durable provenance matters. Mutation success, mutation dry-run, and typed errors write compact run receipts and return `artifactPath`.
+7. Use `--format rich-json` when the command result will become a Telegram/OpenClaw user-visible reply. It returns `{ ok, data, richMessage }`; use `data` for stable IDs and validation, and use `richMessage.fallbackText` plus `richMessage.presentation` for the visible response. If rich output is unavailable, fall back to `--format json` and summarize concisely.
+8. Use `--dry-run --format rich-json` before creating an event or risky money/item mutations when the user wants a preview, is asking for a correction, the target is not freshly verified, or settlement impact matters. Dry-run is available for `event create`, `expense add`, `receipt confirm`, and `item edit/delete/restore`; it writes nothing and returns `plannedOperations`, `sideEffects:[]`, and settlement impact when applicable. Event-create dry-run previews participants, currencies, and OCR languages without creating the SQLite DB.
+9. Use global `--artifact-dir <dir>` with `--format rich-json` when durable provenance matters. Mutation success, mutation dry-run, and typed errors write compact run receipts and return `artifactPath`.
+
+## Rich Message Delivery
+
+- `richMessage.schemaVersion` is currently `1` and `channel` is `telegram`.
+- For direct Telegram replies, prefer `richMessage.fallbackText` as the message body. It may contain Telegram-safe HTML such as `<b>...</b>`; pass it through unchanged except for concise translation/localization. Preserve important IDs from `data` if the fallback does not include them.
+- If using OpenClaw `message.send`, pass `richMessage.fallbackText` as `message` and `richMessage.presentation` as `presentation` when the surface supports rich output. Telegram currently uses the text body for formatting and mainly renders `presentation` for inline controls. `richMessage.blocks` remains a legacy adapter hint. Do not expose raw JSON to the user unless debugging.
+- Keep the reply in Traditional Chinese/Cantonese even if the CLI fallback text is English.
 
 ## Common Commands
 
@@ -34,6 +42,7 @@ For receipt images from Telegram/OpenClaw media, use the helper:
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite event create "Japan Trip" --people A,B,C
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite event create "Japan Trip" --currencies HKD,JPY --people A,B,C --dry-run --format json
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite capabilities --format json
+expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite event summary "Japan Trip" --format rich-json
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite expense add --event "Japan Trip" --paid-by A --currency HKD --amount-minor 240000 --shared-by A,B,C --category flight --description "tickets"
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite expense add --event "Japan Trip" --paid-by A --currency HKD --amount-minor 240000 --shared-by A,B,C --dry-run --format json
 expense-openclaw --db /Users/openclaw/.expense-tracker/expense-tracker.sqlite item search --event "Japan Trip" --text hotel

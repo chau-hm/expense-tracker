@@ -63,7 +63,26 @@ export type CliIo = {
   stderr: (message: string) => void;
 };
 
-type Format = "text" | "json";
+type Format = "text" | "json" | "rich-json";
+type RichMessage = {
+  schemaVersion: 1;
+  channel: "telegram";
+  title: string;
+  tone: "info" | "success" | "warning" | "danger";
+  fallbackText: string;
+  presentation: {
+    title: string;
+    tone: "info" | "success" | "warning" | "danger";
+    blocks: Array<
+      | { type: "text"; text: string }
+      | { type: "section"; fields: Array<{ label: string; value: string }> }
+    >;
+  };
+  blocks: Array<
+    | { type: "section"; text: string }
+    | { type: "fields"; fields: Array<{ label: string; value: string }> }
+  >;
+};
 const DEFAULT_PARTICIPANT_ID = "self" as ParticipantId;
 const DEFAULT_CURRENCY = "HKD";
 const DEFAULT_CATEGORY = "general";
@@ -83,7 +102,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
     }
     const message = error instanceof Error ? error.message : String(error);
     if (wantsJson(argv)) {
-      artifactIo.stdout(JSON.stringify(errorPayload(error)));
+      const payload = errorPayload(error);
+      artifactIo.stdout(JSON.stringify(wantsRichJson(argv)
+        ? { ok: false, data: payload, richMessage: buildRichMessage("Expense error", payload.error.message) }
+        : payload));
       return 1;
     }
     io.stderr(message);
@@ -115,9 +137,10 @@ export function buildProgram(io: CliIo = defaultIo): Command {
         ok: true,
         app: "expense-tracker",
         version: "0.1.0",
-        formats: ["text", "json"],
+        formats: ["text", "json", "rich-json"],
         guarantees: {
           structuredJson: true,
+          richMessages: true,
           typedErrors: true,
           explicitScopeInJson: true,
           stableIds: true,
@@ -946,7 +969,12 @@ function defaultDbPath(): string {
 
 function wantsJson(argv: string[]): boolean {
   const formatIndex = argv.findIndex((arg) => arg === "--format");
-  return formatIndex >= 0 && argv[formatIndex + 1] === "json";
+  return formatIndex >= 0 && ["json", "rich-json"].includes(argv[formatIndex + 1] ?? "");
+}
+
+function wantsRichJson(argv: string[]): boolean {
+  const formatIndex = argv.findIndex((arg) => arg === "--format");
+  return formatIndex >= 0 && argv[formatIndex + 1] === "rich-json";
 }
 
 function optionValue(argv: string[], option: string): string | undefined {
@@ -974,6 +1002,13 @@ function parseArtifactEligibleResult(message: string): Record<string, unknown> |
     const result = JSON.parse(message) as Record<string, unknown>;
     if (result.ok === false || result.dryRun === true || Array.isArray(result.sideEffects)) {
       return result;
+    }
+    const data = result.data;
+    if (data && typeof data === "object") {
+      const nested = data as Record<string, unknown>;
+      if (nested.ok === false || nested.dryRun === true || Array.isArray(nested.sideEffects)) {
+        return result;
+      }
     }
   } catch {
     return undefined;
@@ -1341,7 +1376,70 @@ function writeOutput(io: CliIo, format: Format, jsonValue: unknown, textValue: s
     io.stdout(JSON.stringify(jsonValue));
     return;
   }
+  if (format === "rich-json") {
+    io.stdout(JSON.stringify({
+      ok: true,
+      data: jsonValue,
+      richMessage: buildRichMessage("Expense", textValue),
+    }));
+    return;
+  }
   io.stdout(textValue);
+}
+
+function buildRichMessage(title: string, fallbackText: string): RichMessage {
+  const lines = fallbackText.split("\n").filter((line) => line.trim().length > 0);
+  const fields = lines
+    .filter((line) => line.includes(":"))
+    .slice(0, 8)
+    .map((line) => {
+      const [label, ...rest] = line.split(":");
+      return { label: label.trim(), value: rest.join(":").trim() };
+    })
+    .filter((field) => field.label.length > 0 && field.value.length > 0);
+  return {
+    schemaVersion: 1,
+    channel: "telegram",
+    title,
+    tone: "info",
+    fallbackText: formatTelegramHtmlFallback(title, lines, fallbackText),
+    presentation: {
+      title,
+      tone: "info",
+      blocks: [
+        { type: "text", text: lines.slice(0, 12).join("\n") || fallbackText },
+        ...(fields.length > 0 ? [{ type: "section" as const, fields }] : []),
+      ],
+    },
+    blocks: [
+      { type: "section", text: lines.slice(0, 12).join("\n") || fallbackText },
+      ...(fields.length > 0 ? [{ type: "fields" as const, fields }] : []),
+    ],
+  };
+}
+
+function formatTelegramHtmlFallback(title: string, lines: string[], fallbackText: string): string {
+  const body = (lines.length > 0 ? lines : [fallbackText]).slice(0, 24).map(formatTelegramHtmlLine);
+  return [`<b>${escapeTelegramHtml(title)}</b>`, ...body].join("\n");
+}
+
+function formatTelegramHtmlLine(line: string): string {
+  const separator = line.indexOf(":");
+  if (separator > 0 && separator <= 32) {
+    const label = line.slice(0, separator).trim();
+    const value = line.slice(separator + 1).trim();
+    if (label.length > 0 && value.length > 0) {
+      return `<b>${escapeTelegramHtml(label)}:</b> ${escapeTelegramHtml(value)}`;
+    }
+  }
+  return escapeTelegramHtml(line);
+}
+
+function escapeTelegramHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function stringifyBigInts(value: unknown): unknown {

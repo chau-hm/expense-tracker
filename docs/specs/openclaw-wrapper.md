@@ -10,6 +10,7 @@ The OpenClaw wrapper provides a deterministic bridge from chat slash-command tex
 - Return the same exit code semantics as the core CLI.
 - Show core CLI help when no subcommand is provided.
 - Keep the wrapper thin; chat interpretation and ambiguous money movement must remain outside the wrapper until a later parser/confirmation slice exists.
+- Support `--format rich-json` as an additive Telegram/OpenClaw delivery contract. It must wrap the stable machine-readable result in `data` and include a `richMessage` payload with fallback text, `presentation`, and legacy structured blocks for rich Telegram delivery.
 
 ## Data Impact
 
@@ -23,3 +24,5 @@ The OpenClaw wrapper provides a deterministic bridge from chat slash-command tex
 - `expense item list --format json` lists items through the core CLI.
 - Empty input returns help text with exit code `0`.
 - Invalid input returns a non-zero exit code and the core CLI error text.
+- `event summary Trip --format rich-json` returns `{ ok, data, richMessage }` without changing the existing `--format json` response shape; `richMessage.presentation` can be passed to OpenClaw `message.send`.
+- `capabilities --format json` advertises `rich-json` and `guarantees.richMessages`.

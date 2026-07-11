@@ -11,6 +11,7 @@ Agent-native expense tracker，主介面預設係 OpenClaw / Telegram 自然語�
 - edit/delete/restore 前應先 list/search，除非已知 exact item id。
 - 最終金額、target resolution、settlement 都由 domain/CLI 驗證。
 - Agent-first JSON contract 逐步對齊 inventory：`capabilities --format json` 可做機器可讀 discovery；JSON error 會回 `ok:false,error:{code,message,nextAction,candidates,retryable}`；常用 mutation JSON 會附 `scope`、`sideEffects`、`warnings`。
+- Telegram/OpenClaw rich delivery 可用 `--format rich-json`；回應會保留原始 machine-readable result 喺 `data`，並附 `richMessage.fallbackText` 同 `richMessage.presentation` 俾 wrapper 發 rich message。
 - Mutation 可先 `--dry-run`：`event create`、`expense add`、`receipt confirm`、`item edit/delete/restore` 會回 `plannedOperations`、零 `sideEffects`，並在會影響 event settlement 時附 `settlementImpact`。`event create` preview 連 SQLite DB file 都不會建立。
 - 需要 durable provenance 時可加 global `--artifact-dir <dir>`；structured mutation success、dry-run、typed JSON error 會寫 compact run receipt，JSON 回應會附 `artifactPath`。
 
@@ -43,6 +44,7 @@ Agent callers can inspect supported command contracts:
 
 ```bash
 expense-tracker capabilities --format json
+expense-tracker event summary "Japan Trip" --format rich-json
 ```
 
 Preview money/item mutations before writing:

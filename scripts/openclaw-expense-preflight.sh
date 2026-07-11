@@ -63,6 +63,11 @@ SUMMARY_OUTPUT="$(expense-openclaw --db "$DB_PATH" /expense event summary "Prefl
 check_contains "$SUMMARY_OUTPUT" '"event":{"id":"evt_preflight","name":"Preflight"' "event summary through /expense wrapper"
 check_contains "$SUMMARY_OUTPUT" '"activeItemCount":1' "summary active item count"
 
+RICH_SUMMARY_OUTPUT="$(expense-openclaw --db "$DB_PATH" /expense event summary "Preflight" --format rich-json)"
+check_contains "$RICH_SUMMARY_OUTPUT" '"richMessage":' "rich-json includes rich message"
+check_contains "$RICH_SUMMARY_OUTPUT" '"data":{"event":{"id":"evt_preflight","name":"Preflight"' "rich-json preserves summary data"
+check_contains "$RICH_SUMMARY_OUTPUT" '"fallbackText":' "rich-json includes fallback text"
+
 RECEIPT_DRAFT_ERROR="$(expense-openclaw --db "$DB_PATH" /expense receipt draft missing 2>&1 >/dev/null || true)"
 check_contains "$RECEIPT_DRAFT_ERROR" "Receipt not found: missing" "receipt command routing through /expense wrapper"
 
